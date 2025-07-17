@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { signInWithProvider } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
 
 interface LoginFormProps {
   onSwitchToSignup: () => void;
@@ -16,8 +18,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   
   const { signIn } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +33,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
       if (error) {
         setError(error.message);
       } else {
-        onClose();
+        setSuccess(true);
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 1000);
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -41,10 +49,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
   const handleSocialLogin = async (provider: 'google' | 'github') => {
     setLoading(true);
     setError('');
-    
     try {
-      // TODO: Implement social login
-      console.log(`Logging in with ${provider}`);
+      const { error } = await signInWithProvider(provider);
+      if (error) {
+        setError(error.message);
+      } else {
+        // On success, Supabase will redirect, so no further action needed here
+      }
     } catch (err) {
       setError('Social login failed');
     } finally {
@@ -68,7 +79,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
             Sign in to continue playing RPSOnline
           </p>
         </div>
-
+        {success ? (
+          <div className="text-green-600 dark:text-green-400 text-center font-semibold text-lg">
+            Login successful!<br />
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Redirecting to dashboard...
+            </span>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email Field */}
           <div>
@@ -142,6 +160,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
             )}
           </button>
         </form>
+        )}
 
         {/* Social Login */}
         <div className="mt-6">

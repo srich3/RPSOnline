@@ -1,102 +1,123 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import { LoginForm } from "../components/auth/LoginForm";
+import { SignUpForm } from "../components/auth/SignUpForm";
+import { useAuth } from "../hooks/useAuth";
+import { useUserStore } from "../store/userStore";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [showSignup, setShowSignup] = useState(false);
+  const { user, loading } = useAuth();
+  const { profile, loading: profileLoading, fetchProfile } = useUserStore();
+  const router = useRouter();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Fetch profile when user is authenticated
+  useEffect(() => {
+    if (user && user.id && !profile && !profileLoading) {
+      fetchProfile(user.id);
+    }
+  }, [user, profile, profileLoading, fetchProfile]);
+
+  const handleGoToDashboard = () => {
+    router.push('/dashboard');
+  };
+
+  // Show loading state while checking authentication
+  if (loading || (user && profileLoading)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // If user is logged in, show dashboard button
+  if (user) {
+    const displayName = profile?.username || user.email;
+    
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
+        <main className="w-full max-w-2xl flex flex-col items-center gap-8 mt-12">
+          <h1 className="text-5xl font-extrabold text-white text-center drop-shadow-lg mb-2">
+            RPSOnline
+          </h1>
+          <h2 className="text-2xl text-purple-200 text-center mb-6">
+            Multiplayer Rock Paper Scissors – Reimagined
+          </h2>
+          
+          {/* Welcome back section */}
+          <div className="w-full bg-white/10 rounded-lg p-8 text-white text-center shadow-lg">
+            <h3 className="text-2xl font-bold mb-4">Welcome back, {displayName}!</h3>
+            <p className="text-purple-200 mb-6">
+              Ready to continue your RPSOnline journey?
+            </p>
+            <button
+              onClick={handleGoToDashboard}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-8 rounded-lg transition-all duration-200 shadow-lg text-lg"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+
+          <div className="mt-8 w-full bg-white/10 rounded-lg p-6 text-white text-center shadow-lg">
+            <h3 className="text-xl font-bold mb-2">What is RPSOnline?</h3>
+            <p className="mb-2">
+              RPSOnline is a modern, competitive twist on the classic Rock Paper Scissors game. Play against friends or match with players worldwide in real time. Climb the leaderboard, earn achievements, and master new strategies!
+            </p>
+            <ul className="list-disc list-inside text-left mx-auto max-w-md">
+              <li>Real-time multiplayer matches</li>
+              <li>Skill-based rating and matchmaking</li>
+              <li>Unique game board and action system</li>
+              <li>Achievements, tournaments, and more coming soon!</li>
+            </ul>
+          </div>
+        </main>
+        <footer className="mt-auto py-6 text-purple-200 text-sm text-center">
+          &copy; {new Date().getFullYear()} RPSOnline. All rights reserved.
+        </footer>
+      </div>
+    );
+  }
+
+  // If user is not logged in, show login/signup forms
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
+      <main className="w-full max-w-2xl flex flex-col items-center gap-8 mt-12">
+        <h1 className="text-5xl font-extrabold text-white text-center drop-shadow-lg mb-2">
+          RPSOnline
+        </h1>
+        <h2 className="text-2xl text-purple-200 text-center mb-6">
+          Multiplayer Rock Paper Scissors – Reimagined
+        </h2>
+        <div className="w-full">
+          {showSignup ? (
+            <SignUpForm
+              onSwitchToLogin={() => setShowSignup(false)}
+              onClose={() => {}}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          ) : (
+            <LoginForm
+              onSwitchToSignup={() => setShowSignup(true)}
+              onClose={() => {}}
+            />
+          )}
+        </div>
+        <div className="mt-8 w-full bg-white/10 rounded-lg p-6 text-white text-center shadow-lg">
+          <h3 className="text-xl font-bold mb-2">What is RPSOnline?</h3>
+          <p className="mb-2">
+            RPSOnline is a modern, competitive twist on the classic Rock Paper Scissors game. Play against friends or match with players worldwide in real time. Climb the leaderboard, earn achievements, and master new strategies!
+          </p>
+          <ul className="list-disc list-inside text-left mx-auto max-w-md">
+            <li>Real-time multiplayer matches</li>
+            <li>Skill-based rating and matchmaking</li>
+            <li>Unique game board and action system</li>
+            <li>Achievements, tournaments, and more coming soon!</li>
+          </ul>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      <footer className="mt-auto py-6 text-purple-200 text-sm text-center">
+        &copy; {new Date().getFullYear()} RPSOnline. All rights reserved.
       </footer>
     </div>
   );

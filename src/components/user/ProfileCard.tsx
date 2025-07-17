@@ -15,14 +15,14 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
   
   // TODO: Replace with actual profile data from database
   const mockProfile = {
-    username: auth.user?.email?.split('@')[0] || 'Player',
+    username: auth.user?.username || 'Player',
     wins: 12,
     losses: 8,
     rating: 1250,
     total_games: 20
   };
   
-  const [editedUsername, setEditedUsername] = useState(mockProfile.username);
+  const [editedusername, setEditedusername] = useState(mockProfile.username);
 
   if (!auth.user) {
     return (
@@ -48,7 +48,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
 
   const ratingTier = getRatingTier(mockProfile.rating);
 
-  const handleSaveUsername = async () => {
+  const handleSaveusername = async () => {
     // TODO: Implement username update logic
     setIsEditing(false);
   };
@@ -70,13 +70,13 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
               <div className="flex items-center space-x-2">
                 <input
                   type="text"
-                  value={editedUsername}
-                  onChange={(e) => setEditedUsername(e.target.value)}
+                  value={editedusername}
+                  onChange={(e) => setEditedusername(e.target.value)}
                   className="bg-gray-700 text-white px-3 py-1 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   maxLength={20}
                 />
                 <button
-                  onClick={handleSaveUsername}
+                  onClick={handleSaveusername}
                   className="text-green-400 hover:text-green-300 text-sm"
                 >
                   Save

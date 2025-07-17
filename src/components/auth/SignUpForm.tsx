@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Loader2, User, Check } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { createUserProfile } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
 
 interface SignUpFormProps {
   onSwitchToLogin: () => void;
@@ -11,7 +13,7 @@ interface SignUpFormProps {
 }
 
 export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose }) => {
-  const [username, setUsername] = useState('');
+  const [username, setusername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,9 +22,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameAvailable, setusernameAvailable] = useState<boolean | null>(null);
+  const [success, setSuccess] = useState(false);
   
   const { signUp } = useAuth();
+  const router = useRouter();
 
   // Password strength validation
   const getPasswordStrength = (password: string) => {
@@ -36,22 +40,22 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
   const passwordStrength = getPasswordStrength(password);
 
   // Check username availability (mock implementation)
-  const checkUsernameAvailability = async (username: string) => {
+  const checkusernameAvailability = async (username: string) => {
     if (username.length < 3) {
-      setUsernameAvailable(null);
+      setusernameAvailable(null);
       return;
     }
     
     // TODO: Implement actual username check against database
-    setUsernameAvailable(true); // Mock: always available for now
+    setusernameAvailable(true); // Mock: always available for now
   };
 
-  const handleUsernameChange = (value: string) => {
-    setUsername(value);
+  const handleusernameChange = (value: string) => {
+    setusername(value);
     if (value.length >= 3) {
-      checkUsernameAvailability(value);
+      checkusernameAvailability(value);
     } else {
-      setUsernameAvailable(null);
+      setusernameAvailable(null);
     }
   };
 
@@ -86,12 +90,24 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
     }
 
     try {
-      const { error } = await signUp(email, password);
+      const { data, error } = await signUp(email, password);
       if (error) {
         setError(error.message);
-      } else {
-        // TODO: Create user profile with username
-        onClose();
+      } else if (data?.user) {
+        // Insert user profile into users table
+        const { error: profileError } = await createUserProfile({
+          id: data.user.id,
+          username,
+        });
+        if (profileError) {
+          setError('Account created, but failed to save profile. Please contact support.');
+        } else {
+          setSuccess(true);
+          // Redirect to dashboard after a short delay
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 2000);
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -116,9 +132,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
             Create your account to start playing
           </p>
         </div>
-
+        {success ? (
+          <div className="text-green-600 dark:text-green-400 text-center font-semibold text-lg">
+            Account created successfully!<br />
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Redirecting to dashboard...
+            </span>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Username Field */}
+          {/* username Field */}
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Username
@@ -129,7 +152,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
                 id="username"
                 type="text"
                 value={username}
-                onChange={(e) => handleUsernameChange(e.target.value)}
+                onChange={(e) => handleusernameChange(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 placeholder="Choose a username"
                 required
@@ -152,9 +175,9 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
                 usernameAvailable === false ? 'text-red-600' : 
                 'text-gray-500'
               }`}>
-                {usernameAvailable === true ? 'Username available' : 
-                 usernameAvailable === false ? 'Username taken' : 
-                 username.length < 3 ? 'Username must be at least 3 characters' : 'Checking availability...'}
+                {usernameAvailable === true ? 'username available' : 
+                 usernameAvailable === false ? 'username taken' : 
+                 username.length < 3 ? 'username must be at least 3 characters' : 'Checking availability...'}
               </p>
             )}
           </div>
@@ -307,6 +330,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
             )}
           </button>
         </form>
+        )}
 
         {/* Switch to Login */}
         <div className="mt-6 text-center">

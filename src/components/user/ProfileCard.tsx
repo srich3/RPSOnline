@@ -24,7 +24,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
   
   const [editedUsername, setEditedUsername] = useState(mockProfile.username);
 
-  if (!user) {
+  if (!auth.user) {
     return (
       <div className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg ${className}`}>
         <div className="flex items-center justify-center h-32">

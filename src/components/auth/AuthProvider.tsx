@@ -11,7 +11,9 @@ interface AuthContextType {
   signOut: () => Promise<any>;
 }
 
+
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<any>(null);
@@ -22,13 +24,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
-    
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
     });
-    
+
     return () => {
       listener.subscription.unsubscribe();
     };

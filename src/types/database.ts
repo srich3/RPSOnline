@@ -20,6 +20,7 @@ export interface Database {
           losses: number
           rating: number
           created_at: string
+          tutorial_complete: boolean
         }
         Insert: {
           id: string
@@ -28,6 +29,7 @@ export interface Database {
           losses?: number
           rating?: number
           created_at?: string
+          tutorial_complete?: boolean
         }
         Update: {
           id?: string
@@ -36,6 +38,7 @@ export interface Database {
           losses?: number
           rating?: number
           created_at?: string
+          tutorial_complete?: boolean
         }
         Relationships: [
           {
@@ -235,6 +238,7 @@ export interface UserProfile {
   losses: number;
   rating: number;
   created_at: string;
+  tutorial_complete: boolean;
 }
 
 export interface GameState {

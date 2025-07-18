@@ -77,7 +77,7 @@ export default function GameRoom({ gameId, className = '' }: GameRoomProps) {
     return {
       id: playerId,
       username: playerId === user?.id ? profile?.username || 'You' : 'Opponent',
-      rating: playerId === user?.id ? profile?.rating || 1000 : 1000,
+              rating: playerId === user?.id ? profile?.rating || 100 : 100,
       isOnline: isConnected,
     };
   };

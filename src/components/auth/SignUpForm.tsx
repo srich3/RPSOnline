@@ -177,7 +177,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
               username,
               wins: 0,
               losses: 0,
-              rating: 1000,
+                                rating: 100,
               tutorial_complete: false,
               created_at: new Date().toISOString(),
             })

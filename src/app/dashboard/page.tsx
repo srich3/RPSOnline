@@ -14,11 +14,31 @@ export default function Dashboard() {
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
 
   useEffect(() => {
+    console.log('Dashboard - User:', user?.id);
+    console.log('Dashboard - Profile:', profile);
+    
     // Redirect to login if no user
     if (!user) {
+      console.log('Dashboard - No user, redirecting to /');
       router.push("/");
+      return;
     }
-  }, [user, router]);
+    
+    // Redirect to landing if user has temporary username (OAuth users)
+    if (profile && profile.username && profile.username.startsWith('user_')) {
+      console.log('Dashboard - Temporary username detected, redirecting to /landing');
+      router.push("/landing");
+      return;
+    }
+    
+    // If no profile yet, wait a bit
+    if (!profile) {
+      console.log('Dashboard - No profile yet, waiting...');
+      return;
+    }
+    
+    console.log('Dashboard - User authorized for dashboard access');
+  }, [user, profile, router]);
 
 
   const handleLogout = async () => {
@@ -49,6 +69,11 @@ export default function Dashboard() {
     );
   }
 
+  // Show username prompt if user has temporary username
+  if (profile && profile.username && profile.username.startsWith('user_')) {
+    return <UsernamePrompt />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
 
@@ -62,9 +87,7 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <span className="text-gray-300">
-                Welcome, {profile?.username || user.email}
-              </span>
+
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"

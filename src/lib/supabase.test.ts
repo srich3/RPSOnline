@@ -77,7 +77,7 @@ describe('Supabase Auth Helpers - Basic Tests', () => {
         username: 'testuser',
         wins: 0,
         losses: 0,
-        rating: 1000,
+        rating: 100,
       };
 
       expect(userData).toHaveProperty('id');

@@ -287,8 +287,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           )
         `)
         .neq('user_id', user.id)
-        .gte('users.rating', (profile.rating || 1000) - ratingRange)
-        .lte('users.rating', (profile.rating || 1000) + ratingRange)
+        .gte('users.rating', (profile.rating || 100) - ratingRange)
+        .lte('users.rating', (profile.rating || 100) + ratingRange)
         .order('created_at', { ascending: true })
         .limit(5);
 
@@ -303,8 +303,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       // Select the best match (closest rating)
       const bestMatch = queuePlayers.reduce((best, current) => {
-        const bestDiff = Math.abs((best.users.rating || 1000) - (profile.rating || 1000));
-        const currentDiff = Math.abs((current.users.rating || 1000) - (profile.rating || 1000));
+        const bestDiff = Math.abs((best.users.rating || 100) - (profile.rating || 100));
+        const currentDiff = Math.abs((current.users.rating || 100) - (profile.rating || 100));
         return currentDiff < bestDiff ? current : best;
       });
 

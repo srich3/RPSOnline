@@ -20,7 +20,7 @@ export default function StatsOverview({ className = '' }: StatsOverviewProps) {
     currentStreak: 0,
     bestStreak: 0,
     averageGameTime: '0m 0s',
-    rating: 1000,
+    rating: 100,
     ratingChange: 0
   });
   const [recentGames, setRecentGames] = useState<any[]>([]);

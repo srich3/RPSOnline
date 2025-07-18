@@ -70,14 +70,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Helper to ensure a users row exists for every auth user
   const ensureUserProfile = async (user: User) => {
+    if (!user || !user.id) {
+      console.log('No valid user provided to ensureUserProfile');
+      return;
+    }
+
     try {
+      console.log('Checking if profile exists for user:', user.id);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
       
-      if (!data && error?.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error checking user profile:', error);
         return;
       }
@@ -85,12 +92,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!data) {
         // No profile exists, create one with default values
         console.log('Creating default user profile for:', user.id);
+        
+        // Generate a simple unique username using timestamp and user ID
+        const timestamp = Date.now();
+        const userIdSuffix = user.id.slice(0, 8);
+        const finalUsername = `user_${userIdSuffix}_${timestamp}`;
+        
+        console.log('Generated temporary username for OAuth user:', finalUsername);
+        
         const { error: insertError } = await supabase.from('users').insert({
           id: user.id,
-          username: '', // Empty username - user will set this later
+          username: finalUsername,
           wins: 0,
           losses: 0,
-          rating: 1000,
+          rating: 100,
           tutorial_complete: false,
           created_at: new Date().toISOString(),
         });
@@ -102,7 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } else {
             console.error('Error creating default profile:', insertError);
           }
+        } else {
+          console.log('Successfully created profile with username:', finalUsername);
         }
+      } else {
+        console.log('Profile already exists for user:', user.id);
       }
     } catch (err) {
       console.error('Exception in ensureUserProfile:', err);
@@ -110,29 +129,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+      
+      console.log('Auth state changed:', _event, session?.user?.id);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
-        // Ensure profile exists for all users
-        await ensureUserProfile(session.user);
-        await fetchUserProfile(session.user.id);
+        try {
+          // For OAuth signups, we need to ensure they go through the landing page
+          if (_event === 'SIGNED_IN' && session.user.app_metadata?.provider) {
+            console.log('OAuth user signed in, ensuring they go through landing page');
+            // Force redirect to landing page for OAuth users
+            if (typeof window !== 'undefined' && window.location.pathname !== '/landing') {
+              window.location.href = '/landing';
+              return;
+            }
+          }
+          
+          // Ensure profile exists for all users
+          await ensureUserProfile(session.user);
+          if (isMounted) {
+            await fetchUserProfile(session.user.id);
+          }
+        } catch (error) {
+          console.error('Error in auth state change handler:', error);
+        }
       } else {
         setProfile(null);
       }
-      setLoading(false);
+      
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
+      
+      console.log('Initial session check:', session?.user?.id);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
-        await ensureUserProfile(session.user);
-        await fetchUserProfile(session.user.id);
+        try {
+          await ensureUserProfile(session.user);
+          if (isMounted) {
+            await fetchUserProfile(session.user.id);
+          }
+        } catch (error) {
+          console.error('Error in initial session handler:', error);
+        }
       }
-      setLoading(false);
+      
+      if (isMounted) {
+        setLoading(false);
+      }
     });
 
     return () => {
+      isMounted = false;
       listener.subscription.unsubscribe();
     };
   }, []);

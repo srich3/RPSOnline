@@ -32,8 +32,19 @@ export default function Home() {
     );
   }
 
-  // If user is logged in, show dashboard button
+  // If user is logged in, check if they need to go through OAuth flow
   if (user) {
+    // Check if this is an OAuth user with a temporary username
+    if (profile && profile.username && profile.username.startsWith('user_')) {
+      console.log('Main page - OAuth user with temporary username detected, redirecting to landing');
+      router.push('/landing');
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
+          <div className="text-white text-xl">Redirecting...</div>
+        </div>
+      );
+    }
+    
     const displayName = profile?.username || user.email;
     
     return (

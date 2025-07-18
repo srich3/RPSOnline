@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     username TEXT UNIQUE NOT NULL,
     wins INTEGER DEFAULT 0,
     losses INTEGER DEFAULT 0,
-    rating INTEGER DEFAULT 1000,
+    rating INTEGER DEFAULT 100,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

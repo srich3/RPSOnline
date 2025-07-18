@@ -1,50 +1,100 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Users, Trophy, Settings, Bell, Search } from 'lucide-react';
+import { Play, Users, Trophy, Settings, Bell, Search, Zap, Target, Crown } from 'lucide-react';
 import ProfileCard from './ProfileCard';
 import StatsOverview from './StatsOverview';
 import QueueManager from '../matchmaking/QueueManager';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 
 interface DashboardProps {
   className?: string;
 }
 
 export default function Dashboard({ className = '' }: DashboardProps) {
-  // TODO: Replace with actual data from database
-  const mockTournaments = [
-    {
-      id: 1,
-      name: 'Weekly Championship',
-      participants: 128,
-      prize: '1000 Coins',
-      status: 'active',
-      timeLeft: '2d 14h'
-    },
-    {
-      id: 2,
-      name: 'Beginner\'s Cup',
-      participants: 64,
-      prize: '500 Coins',
-      status: 'upcoming',
-      timeLeft: '5d 8h'
-    },
-    {
-      id: 3,
-      name: 'Pro League',
-      participants: 32,
-      prize: '2000 Coins',
-      status: 'upcoming',
-      timeLeft: '1w 2d'
-    }
-  ];
+  const auth = useAuth();
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [onlinePlayers, setOnlinePlayers] = useState(0);
+  const [quickPlayLoading, setQuickPlayLoading] = useState(false);
 
-  const mockFriends = [
-    { id: 1, name: 'Player123', status: 'online', lastSeen: '2m ago' },
-    { id: 2, name: 'RPSMaster', status: 'in-game', lastSeen: '5m ago' },
-    { id: 3, name: 'GamePro', status: 'offline', lastSeen: '1h ago' }
-  ];
+  useEffect(() => {
+    if (auth.user) {
+      fetchTournaments();
+      fetchFriends();
+      fetchOnlinePlayers();
+    }
+  }, [auth.user]);
+
+  const fetchTournaments = async () => {
+    // TODO: Implement tournament fetching from database
+    const mockTournaments = [
+      {
+        id: 1,
+        name: 'Weekly Championship',
+        participants: 128,
+        prize: '1000 Coins',
+        status: 'active',
+        timeLeft: '2d 14h'
+      },
+      {
+        id: 2,
+        name: 'Beginner\'s Cup',
+        participants: 64,
+        prize: '500 Coins',
+        status: 'upcoming',
+        timeLeft: '5d 8h'
+      },
+      {
+        id: 3,
+        name: 'Pro League',
+        participants: 32,
+        prize: '2000 Coins',
+        status: 'upcoming',
+        timeLeft: '1w 2d'
+      }
+    ];
+    setTournaments(mockTournaments);
+  };
+
+  const fetchFriends = async () => {
+    // TODO: Implement friends system
+    const mockFriends = [
+      { id: 1, name: 'Player123', status: 'online', lastSeen: '2m ago' },
+      { id: 2, name: 'RPSMaster', status: 'in-game', lastSeen: '5m ago' },
+      { id: 3, name: 'GamePro', status: 'offline', lastSeen: '1h ago' }
+    ];
+    setFriends(mockFriends);
+  };
+
+  const fetchOnlinePlayers = async () => {
+    // TODO: Implement online players count
+    setOnlinePlayers(Math.floor(Math.random() * 100) + 50);
+  };
+
+  const handleQuickPlay = async () => {
+    if (!auth.user) return;
+    
+    setQuickPlayLoading(true);
+    try {
+      // Add user to matchmaking queue
+      const { error } = await supabase
+        .from('game_queue')
+        .insert({ user_id: auth.user.id });
+      
+      if (error) {
+        console.error('Error joining queue:', error);
+      } else {
+        console.log('Joined matchmaking queue');
+      }
+    } catch (error) {
+      console.error('Error joining queue:', error);
+    } finally {
+      setQuickPlayLoading(false);
+    }
+  };
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 ${className}`}>
@@ -80,6 +130,46 @@ export default function Dashboard({ className = '' }: DashboardProps) {
             {/* Profile Card */}
             <ProfileCard />
             
+            {/* Quick Play Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-6 shadow-lg border border-blue-500/30"
+            >
+              <div className="text-center">
+                <div className="flex items-center justify-center mb-4">
+                  <Zap className="w-8 h-8 text-white mr-2" />
+                  <h3 className="text-xl font-bold text-white">Quick Play</h3>
+                </div>
+                <p className="text-blue-100 text-sm mb-4">
+                  Jump into a game instantly with players of similar skill
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleQuickPlay}
+                  disabled={quickPlayLoading}
+                  className="w-full bg-white text-blue-600 px-6 py-3 rounded-lg font-bold transition-colors hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {quickPlayLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
+                      Finding Match...
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <Play className="w-5 h-5 mr-2" />
+                      Play Now
+                    </div>
+                  )}
+                </motion.button>
+                <div className="mt-3 text-blue-100 text-xs">
+                  {onlinePlayers} players online
+                </div>
+              </div>
+            </motion.div>
+
             {/* Matchmaking Queue */}
             <QueueManager />
 
@@ -96,7 +186,7 @@ export default function Dashboard({ className = '' }: DashboardProps) {
               </h3>
               
               <div className="space-y-3">
-                {mockFriends.map((friend) => (
+                {friends.map((friend: any) => (
                   <div key={friend.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className={`w-3 h-3 rounded-full ${
@@ -138,7 +228,7 @@ export default function Dashboard({ className = '' }: DashboardProps) {
               </div>
               
               <div className="space-y-4">
-                {mockTournaments.map((tournament) => (
+                {tournaments.map((tournament: any) => (
                   <motion.div
                     key={tournament.id}
                     whileHover={{ scale: 1.02 }}

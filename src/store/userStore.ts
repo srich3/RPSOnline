@@ -6,11 +6,15 @@ interface UserStore {
   profile: User | null;
   loading: boolean;
   error: string | null;
+  achievements: any[];
+  recentGames: any[];
   
   // Actions
   fetchProfile: (userId: string) => Promise<void>;
   updateProfile: (updates: UserUpdate) => Promise<void>;
   updateStats: (gameResult: 'win' | 'loss', ratingChange: number) => Promise<void>;
+  fetchAchievements: (userId: string) => Promise<void>;
+  fetchRecentGames: (userId: string, limit?: number) => Promise<void>;
   resetError: () => void;
 }
 
@@ -18,6 +22,8 @@ export const useUserStore = create<UserStore>((set, get) => ({
   profile: null,
   loading: false,
   error: null,
+  achievements: [],
+  recentGames: [],
 
   fetchProfile: async (userId: string) => {
     if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
@@ -99,5 +105,40 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
   resetError: () => {
     set({ error: null });
+  },
+
+  fetchAchievements: async (userId: string) => {
+    // TODO: Implement achievements fetching
+    const mockAchievements = [
+      { id: 1, name: 'First Victory', description: 'Won your first game!', unlocked: true },
+      { id: 2, name: 'Win Streak', description: 'Won 5 games in a row', unlocked: false },
+      { id: 3, name: 'Veteran', description: 'Played 50 games', unlocked: false }
+    ];
+    set({ achievements: mockAchievements });
+  },
+
+  fetchRecentGames: async (userId: string, limit = 10) => {
+    try {
+      const { data: games } = await supabase
+        .from('games')
+        .select(`
+          id,
+          status,
+          winner_id,
+          created_at,
+          player1:users!player1_id(username),
+          player2:users!player2_id(username)
+        `)
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .eq('status', 'finished')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      if (games) {
+        set({ recentGames: games });
+      }
+    } catch (error) {
+      console.error('Error fetching recent games:', error);
+    }
   }
 })); 

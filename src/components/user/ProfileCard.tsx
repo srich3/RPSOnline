@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Edit, Trophy, Target, TrendingUp, User } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 
 interface ProfileCardProps {
   className?: string;
@@ -11,18 +12,11 @@ interface ProfileCardProps {
 
 export default function ProfileCard({ className = '' }: ProfileCardProps) {
   const auth = useAuth();
-  const [isEditing, setIsEditing] = useState(false);
+  // Remove editing state and logic
+  // const [isEditing, setIsEditing] = useState(false);
   
-  // Use profile data from auth context, fallback to mock data
-  const mockProfile = {
-    username: auth.profile?.username || auth.user?.email?.split('@')[0] || 'Player',
-    wins: auth.profile?.wins || 12,
-    losses: auth.profile?.losses || 8,
-    rating: auth.profile?.rating || 1250,
-    total_games: (auth.profile?.wins || 0) + (auth.profile?.losses || 0) || 20
-  };
-  
-  const [editedusername, setEditedusername] = useState(mockProfile.username);
+  // Use only real profile data
+  const profile = auth.profile;
 
   if (!auth.user) {
     return (
@@ -34,9 +28,18 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
     );
   }
 
-  const winRate = mockProfile.total_games > 0 
-    ? Math.round((mockProfile.wins / mockProfile.total_games) * 100) 
-    : 0;
+  if (!profile) {
+    return (
+      <div className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg ${className}`}>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-gray-400">Loading profile...</div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalGames = (profile.wins ?? 0) + (profile.losses ?? 0);
+  const winRate = totalGames > 0 ? Math.round((profile.wins / totalGames) * 100) : 0;
 
   const getRatingTier = (rating: number) => {
     if (rating >= 2000) return { name: 'Master', color: 'text-purple-400', bg: 'bg-purple-500/20' };
@@ -46,12 +49,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
     return { name: 'Novice', color: 'text-gray-400', bg: 'bg-gray-500/20' };
   };
 
-  const ratingTier = getRatingTier(mockProfile.rating);
-
-  const handleSaveusername = async () => {
-    // TODO: Implement username update logic
-    setIsEditing(false);
-  };
+  const ratingTier = getRatingTier(profile.rating ?? 0);
 
   return (
     <motion.div
@@ -66,39 +64,10 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
             <User className="w-6 h-6 text-white" />
           </div>
           <div>
-            {isEditing ? (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={editedusername}
-                  onChange={(e) => setEditedusername(e.target.value)}
-                  className="bg-gray-700 text-white px-3 py-1 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  maxLength={20}
-                />
-                <button
-                  onClick={handleSaveusername}
-                  className="text-green-400 hover:text-green-300 text-sm"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="text-gray-400 hover:text-gray-300 text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-bold text-white">{mockProfile.username}</h2>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="text-gray-400 hover:text-gray-300 transition-colors"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            {/* Username is now plain text, not editable */}
+            <div className="flex items-center space-x-2">
+              <h2 className="text-xl font-bold text-white">{profile.username}</h2>
+            </div>
             <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${ratingTier.bg} ${ratingTier.color}`}>
               {ratingTier.name}
             </div>
@@ -114,7 +83,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
         >
           <div className="flex items-center justify-center mb-2">
             <Trophy className="w-5 h-5 text-yellow-400 mr-2" />
-            <span className="text-2xl font-bold text-white">{mockProfile.wins}</span>
+            <span className="text-2xl font-bold text-white">{profile.wins}</span>
           </div>
           <p className="text-gray-300 text-sm">Wins</p>
         </motion.div>
@@ -125,7 +94,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
         >
           <div className="flex items-center justify-center mb-2">
             <Target className="w-5 h-5 text-red-400 mr-2" />
-            <span className="text-2xl font-bold text-white">{mockProfile.losses}</span>
+            <span className="text-2xl font-bold text-white">{profile.losses}</span>
           </div>
           <p className="text-gray-300 text-sm">Losses</p>
         </motion.div>
@@ -154,7 +123,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
               <TrendingUp className="w-5 h-5 text-blue-400 mr-2" />
               <span className="text-gray-300 text-sm">Rating</span>
             </div>
-            <span className="text-white font-bold text-lg">{mockProfile.rating}</span>
+            <span className="text-white font-bold text-lg">{profile.rating}</span>
           </div>
         </div>
       </div>
@@ -163,7 +132,7 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
       <div className="mt-4 pt-4 border-t border-gray-700">
         <div className="text-center">
           <span className="text-gray-400 text-sm">Total Games</span>
-          <div className="text-white font-semibold text-lg">{mockProfile.total_games}</div>
+          <div className="text-white font-semibold text-lg">{totalGames}</div>
         </div>
       </div>
     </motion.div>

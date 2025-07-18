@@ -62,27 +62,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Helper to ensure a users row exists for every auth user
+  const ensureUserProfile = async (user: User) => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    if (!data) {
+      await supabase.from('users').insert({
+        id: user.id,
+        username: '', // or user.email.split('@')[0] as a default
+        wins: 0,
+        losses: 0,
+        rating: 100, // Set new player rating to 100
+        tutorial_complete: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+  };
+
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
-      
       if (session?.user) {
+        await ensureUserProfile(session.user);
         await fetchUserProfile(session.user.id);
       } else {
         setProfile(null);
       }
-      
       setLoading(false);
     });
 
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
-      
       if (session?.user) {
+        await ensureUserProfile(session.user);
         await fetchUserProfile(session.user.id);
       }
-      
       setLoading(false);
     });
 
@@ -103,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return supabase.auth.signInWithOAuth({ 
       provider,
       options: {
-        redirectTo: `${window.location.origin}/dashboard`
+        redirectTo: `${window.location.origin}/landing`
       }
     });
   };

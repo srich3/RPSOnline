@@ -40,7 +40,13 @@ export function UsernameGate({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, profileLoading, hasAttemptedFetch]);
 
-  if (authLoading || profileLoading) return null;
+  if (authLoading || profileLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900">
+        <div className="text-white text-xl">Loading profile...</div>
+      </div>
+    );
+  }
 
   // If there's an error but we have a user, show the username prompt instead of error
   if (error && user && user.id) {

@@ -108,7 +108,7 @@ export const processPlayerActions = (
   boardState: GameBoardState,
   playerId: string
 ): GameBoardState => {
-  let newBoardState = { ...boardState };
+  const newBoardState = { ...boardState };
 
   // Process actions in order: Defend → Attack → Conquer
   const sortedActions = actions.sort((a, b) => {

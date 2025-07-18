@@ -13,13 +13,13 @@ export default function ProfileCard({ className = '' }: ProfileCardProps) {
   const auth = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   
-  // TODO: Replace with actual profile data from database
+  // Use profile data from auth context, fallback to mock data
   const mockProfile = {
-    username: auth.user?.username || 'Player',
-    wins: 12,
-    losses: 8,
-    rating: 1250,
-    total_games: 20
+    username: auth.profile?.username || auth.user?.email?.split('@')[0] || 'Player',
+    wins: auth.profile?.wins || 12,
+    losses: auth.profile?.losses || 8,
+    rating: auth.profile?.rating || 1250,
+    total_games: (auth.profile?.wins || 0) + (auth.profile?.losses || 0) || 20
   };
   
   const [editedusername, setEditedusername] = useState(mockProfile.username);

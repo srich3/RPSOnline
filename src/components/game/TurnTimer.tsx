@@ -32,7 +32,7 @@ export default function TurnTimer({ className = '' }: TurnTimerProps) {
   let opponentSubmitted = false;
   let isPlayer1 = false;
   let isPlayer2 = false;
-  let opponentName = 'Opponent';
+  const opponentName = 'Opponent';
   if (currentGame && currentTurn && boardState) {
     isPlayer1 = currentTurn.player_id === currentGame.player1_id;
     isPlayer2 = currentTurn.player_id === currentGame.player2_id;

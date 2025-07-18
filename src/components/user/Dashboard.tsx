@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Play, Users, Trophy, Settings, Bell, Search } from 'lucide-react';
 import ProfileCard from './ProfileCard';
 import StatsOverview from './StatsOverview';
+import QueueManager from '../matchmaking/QueueManager';
 
 interface DashboardProps {
   className?: string;
@@ -79,44 +80,8 @@ export default function Dashboard({ className = '' }: DashboardProps) {
             {/* Profile Card */}
             <ProfileCard />
             
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg border border-gray-700"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              
-              <div className="space-y-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 shadow-lg"
-                >
-                  <Play className="w-5 h-5" />
-                  <span>Quick Play</span>
-                </motion.button>
-                
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
-                >
-                  <Trophy className="w-5 h-5" />
-                  <span>Join Tournament</span>
-                </motion.button>
-                
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
-                >
-                  <Users className="w-5 h-5" />
-                  <span>Find Friends</span>
-                </motion.button>
-              </div>
-            </motion.div>
+            {/* Matchmaking Queue */}
+            <QueueManager />
 
             {/* Friends List */}
             <motion.div

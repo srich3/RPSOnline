@@ -20,7 +20,7 @@ export default function Home() {
   }, [user, profile, profileLoading, fetchProfile]);
 
   const handleGoToDashboard = () => {
-    router.push('/dashboard');
+    router.push('/landing');
   };
 
   // Show loading state while checking authentication
@@ -40,17 +40,17 @@ export default function Home() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
         <main className="w-full max-w-2xl flex flex-col items-center gap-8 mt-12">
           <h1 className="text-5xl font-extrabold text-white text-center drop-shadow-lg mb-2">
-            RPSOnline
+            Tacto
           </h1>
           <h2 className="text-2xl text-purple-200 text-center mb-6">
-            Multiplayer Rock Paper Scissors – Reimagined
+            Tactical Tic Tac Toe – Every Square is a Battle
           </h2>
           
           {/* Welcome back section */}
           <div className="w-full bg-white/10 rounded-lg p-8 text-white text-center shadow-lg">
             <h3 className="text-2xl font-bold mb-4">Welcome back, {displayName}!</h3>
             <p className="text-purple-200 mb-6">
-              Ready to continue your RPSOnline journey?
+              Ready to continue your Tacto journey?
             </p>
             <button
               onClick={handleGoToDashboard}
@@ -61,9 +61,9 @@ export default function Home() {
           </div>
 
           <div className="mt-8 w-full bg-white/10 rounded-lg p-6 text-white text-center shadow-lg">
-            <h3 className="text-xl font-bold mb-2">What is RPSOnline?</h3>
+            <h3 className="text-xl font-bold mb-2">What is Tacto?</h3>
             <p className="mb-2">
-              RPSOnline is a modern, competitive twist on the classic Rock Paper Scissors game. Play against friends or match with players worldwide in real time. Climb the leaderboard, earn achievements, and master new strategies!
+              Tacto is a modern, competitive twist on the classic Tic Tac Toe game. Control the 3x3 grid through strategic allocation of Attack, Defend, and Conquer actions. Every turn is a battle of wits—will you secure key positions, break through enemy defenses, or expand your territory?
             </p>
             <ul className="list-disc list-inside text-left mx-auto max-w-md">
               <li>Real-time multiplayer matches</li>
@@ -74,7 +74,7 @@ export default function Home() {
           </div>
         </main>
         <footer className="mt-auto py-6 text-purple-200 text-sm text-center">
-          &copy; {new Date().getFullYear()} RPSOnline. All rights reserved.
+          &copy; {new Date().getFullYear()} Tacto. All rights reserved.
         </footer>
       </div>
     );
@@ -85,10 +85,10 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
       <main className="w-full max-w-2xl flex flex-col items-center gap-8 mt-12">
         <h1 className="text-5xl font-extrabold text-white text-center drop-shadow-lg mb-2">
-          RPSOnline
+          Tacto
         </h1>
         <h2 className="text-2xl text-purple-200 text-center mb-6">
-          Multiplayer Rock Paper Scissors – Reimagined
+          Tactical Tic Tac Toe – Every Square is a Battle
         </h2>
         <div className="w-full">
           {showSignup ? (
@@ -104,9 +104,9 @@ export default function Home() {
           )}
         </div>
         <div className="mt-8 w-full bg-white/10 rounded-lg p-6 text-white text-center shadow-lg">
-          <h3 className="text-xl font-bold mb-2">What is RPSOnline?</h3>
+          <h3 className="text-xl font-bold mb-2">What is Tacto?</h3>
           <p className="mb-2">
-            RPSOnline is a modern, competitive twist on the classic Rock Paper Scissors game. Play against friends or match with players worldwide in real time. Climb the leaderboard, earn achievements, and master new strategies!
+            Tacto is a modern, competitive twist on the classic Tic Tac Toe game. Control the 3x3 grid through strategic allocation of Attack, Defend, and Conquer actions. Every turn is a battle of wits—will you secure key positions, break through enemy defenses, or expand your territory?
           </p>
           <ul className="list-disc list-inside text-left mx-auto max-w-md">
             <li>Real-time multiplayer matches</li>
@@ -117,7 +117,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="mt-auto py-6 text-purple-200 text-sm text-center">
-        &copy; {new Date().getFullYear()} RPSOnline. All rights reserved.
+        &copy; {new Date().getFullYear()} Tacto. All rights reserved.
       </footer>
     </div>
   );

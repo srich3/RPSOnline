@@ -146,8 +146,8 @@ export default function StatsOverview({ className = '' }: StatsOverviewProps) {
       if (games) {
         games.forEach(game => {
           const d = new Date(game.created_at);
-          const idx = Math.floor((d - since) / (1000*60*60*24));
-          if (idx >= 0 && idx < 7) {
+          const idx = Math.floor((d.getTime() - since.getTime()) / (1000*60*60*24));
+          if (idx >= 0 && idx < 7 && auth.user) {
             if (game.winner_id === auth.user.id) week[idx].wins++;
             else week[idx].losses++;
           }

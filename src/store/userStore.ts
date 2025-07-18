@@ -16,6 +16,7 @@ interface UserStore {
   fetchAchievements: (userId: string) => Promise<void>;
   fetchRecentGames: (userId: string, limit?: number) => Promise<void>;
   resetError: () => void;
+  clearUserData: () => void;
 }
 
 export const useUserStore = create<UserStore>((set, get) => ({
@@ -105,6 +106,17 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
   resetError: () => {
     set({ error: null });
+  },
+
+  // Clear all user data on logout
+  clearUserData: () => {
+    set({
+      profile: null,
+      loading: false,
+      error: null,
+      achievements: [],
+      recentGames: [],
+    });
   },
 
   fetchAchievements: async (userId: string) => {

@@ -13,7 +13,42 @@ export const signInWithEmail = (email: string, password: string) =>
 export const signUpWithEmail = (email: string, password: string) =>
   supabase.auth.signUp({ email, password });
 
-export const signOut = () => supabase.auth.signOut();
+export const signOut = async () => {
+  try {
+    console.log('Supabase: Starting comprehensive logout...');
+    
+    // Clear all Supabase auth data
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error('Error during Supabase signOut:', error);
+      return { error };
+    }
+    
+    // Clear localStorage and sessionStorage
+    if (typeof window !== 'undefined') {
+      // Clear all localStorage items
+      localStorage.clear();
+      
+      // Clear all sessionStorage items
+      sessionStorage.clear();
+      
+      // Clear any cookies that might be set
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      console.log('Supabase: All local storage and cookies cleared');
+    }
+    
+    return { error: null };
+  } catch (err) {
+    console.error('Error during logout:', err);
+    return { error: err };
+  }
+};
 
 export const signInWithProvider = (provider: 'google' | 'github') => {
   return supabase.auth.signInWithOAuth({ 
@@ -47,13 +82,25 @@ export const updateUserProfile = async (userId: string, updates: Database['publi
 };
 
 export const checkUsernameAvailability = async (username: string) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('username')
-    .eq('username', username)
-    .single();
-  
-  return { available: !data, error };
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('username')
+      .eq('username', username)
+      .maybeSingle();
+    
+    if (error) {
+      console.error('Username check error:', error);
+      return { available: false, error };
+    }
+    
+    // If data is null, username is available
+    // If data exists, username is taken
+    return { available: !data, error: null };
+  } catch (err) {
+    console.error('Username check exception:', err);
+    return { available: false, error: err };
+  }
 };
 
 // User statistics helpers

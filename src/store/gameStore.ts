@@ -53,6 +53,7 @@ interface GameStore {
   removeAction: (actionId: string) => void;
   clearAllActions: () => void;
   resolveTurn: () => void;
+  clearGameData: () => void;
   
   // Computed values
   getAvailableActions: () => ReturnType<typeof getAvailableActions>;
@@ -294,6 +295,25 @@ export const useGameStore = create<GameStore>()(
           gameHistory: [],
           moveCount: 0,
         });
+      },
+
+      clearGameData: () => {
+        console.log('🗑️ clearGameData called in store');
+        set({
+          currentGame: null,
+          boardState: null,
+          gameStatus: 'waiting',
+          winner: null,
+          currentTurn: null,
+          timeRemaining: GAME_CONSTANTS.TURN_TIME_LIMIT,
+          isMyTurn: false,
+          pendingActions: [],
+          selectedSquare: null,
+          selectedAction: null,
+          gameHistory: [],
+          moveCount: 0,
+        });
+        console.log('✅ clearGameData - all game data cleared');
       },
 
       // Computed values

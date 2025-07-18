@@ -63,7 +63,7 @@ export default function Dashboard({ className = '' }: DashboardProps) {
     // TODO: Implement friends system
     const mockFriends = [
       { id: 1, name: 'Player123', status: 'online', lastSeen: '2m ago' },
-      { id: 2, name: 'RPSMaster', status: 'in-game', lastSeen: '5m ago' },
+      { id: 2, name: 'TactoMaster', status: 'in-game', lastSeen: '5m ago' },
       { id: 3, name: 'GamePro', status: 'offline', lastSeen: '1h ago' }
     ];
     setFriends(mockFriends);
@@ -107,7 +107,7 @@ export default function Dashboard({ className = '' }: DashboardProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold text-white">RPSOnline Dashboard</h1>
+              <h1 className="text-xl font-bold text-white">Tacto Dashboard</h1>
             </div>
             
             <div className="flex items-center space-x-4">

@@ -22,8 +22,15 @@ export default function Dashboard() {
 
 
   const handleLogout = async () => {
-    await signOut();
-    router.push("/");
+    try {
+      console.log('Dashboard: Initiating logout...');
+      await signOut();
+      // The AuthProvider will handle the redirect and page refresh
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Fallback: redirect to home page
+      router.push("/");
+    }
   };
 
   const handleProfileComplete = () => {
@@ -51,7 +58,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold text-white">RPSOnline Dashboard</h1>
+              <h1 className="text-xl font-bold text-white">Tacto Dashboard</h1>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -92,23 +99,15 @@ export default function Dashboard() {
                   View Leaderboard
                 </button>
                 <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200">
-                  Settings
+                  Achievements
                 </button>
               </div>
             </div>
             {/* Stats Overview */}
             <StatsOverview />
-            {/* Success Message */}
-            <div className="bg-green-900/20 border border-green-500/50 rounded-xl p-6">
-              <h3 className="text-green-400 font-semibold mb-2">✓ Authentication Successful!</h3>
-              <p className="text-gray-300">
-                You have successfully logged in to RPSOnline. The authentication flow is working correctly.
-                {profile ? " Your profile has been loaded successfully." : " You may need to complete your profile setup."}
-              </p>
-            </div>
           </div>
         </div>
       </main>
     </div>
   );
-} 
+}  

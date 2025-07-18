@@ -72,7 +72,7 @@ const GamePage: React.FC = () => {
   if (!boardState || !currentTurn) {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen bg-gray-50 py-8">
-        <h1 className="text-2xl font-bold mb-6">RPSOnline Game Board</h1>
+        <h1 className="text-2xl font-bold mb-6">Tacto Game Board</h1>
         <p>Loading game...</p>
       </main>
     );
@@ -80,7 +80,7 @@ const GamePage: React.FC = () => {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen bg-gray-50 py-8">
-      <h1 className="text-2xl font-bold mb-6">RPSOnline Game Board</h1>
+      <h1 className="text-2xl font-bold mb-6">Tacto Game Board</h1>
       
       {/* Turn Timer - Top of Game Area */}
       <div className="mb-6 w-full max-w-md">

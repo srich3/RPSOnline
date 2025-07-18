@@ -1,10 +1,12 @@
-# RPSOnline - Multiplayer Rock Paper Scissors Strategy Game
+# Tacto - Multiplayer Tactical Tic Tac Toe Game
 
-A real-time multiplayer strategy game that evolves the classic Rock Paper Scissors into a tactical territory control experience.
+**Every square is a battle.**
+
+Tacto transforms the classic Tic Tac Toe into an intense tactical battle. Control the 3x3 grid through strategic allocation of Attack, Defend, and Conquer actions. Every turn is a battle of wits—will you secure key positions, break through enemy defenses, or expand your territory? Real-time multiplayer combat where every decision counts.
 
 ## 🎮 Game Overview
 
-RPSOnline transforms the simple Rock Paper Scissors game into a strategic multiplayer experience where players compete to control a 3x3 grid using Attack, Defend, and Conquer mechanics.
+Tacto transforms the simple Tic Tac Toe game into a strategic multiplayer experience where players compete to control a 3x3 grid using Attack, Defend, and Conquer mechanics.
 
 ### Core Gameplay
 - **Turn 1**: Both players simultaneously claim 2 squares on a 3x3 grid
@@ -29,7 +31,7 @@ RPSOnline transforms the simple Rock Paper Scissors game into a strategic multip
 ## 🏗️ Project Structure
 
 ```
-rpsonline/
+tacto/
 ├── src/
 │   ├── components/
 │   │   ├── game/
@@ -58,8 +60,8 @@ rpsonline/
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/rpsonline.git
-cd rpsonline
+git clone https://github.com/yourusername/tacto.git
+cd tacto
 npm install
 ```
 
@@ -140,6 +142,7 @@ vercel --prod
 - Control majority of squares when timer expires
 - Force opponent to forfeit
 - Complete domination (control all 9 squares)
+- Achieve three in a row (traditional Tic Tac Toe win)
 
 ### Scoring System
 - +10 points for wins
@@ -182,10 +185,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Defend key strategic positions
 - Balance offense and territory expansion
 - Watch opponent patterns and adapt
+- Look for traditional three-in-a-row opportunities
 
 ## 🔗 Links
 
-- [Live Demo](https://rpsonline.vercel.app)
+- [Live Demo](https://tacto.vercel.app)
 - [API Documentation](docs/api.md)
 - [Game Rules](docs/rules.md)
 - [Contributing Guide](CONTRIBUTING.md)

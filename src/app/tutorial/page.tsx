@@ -81,7 +81,7 @@ export default function TutorialPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Welcome to RPSOnline!</h1>
+        <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Welcome to Tacto!</h1>
         {loading || !profile ? (
           <div className="text-center text-gray-500">Loading...</div>
         ) : needsUsername && step === 0 ? (
@@ -133,7 +133,7 @@ export default function TutorialPage() {
           <>
             <h2 className="text-xl font-semibold mb-4 text-center">Tutorial</h2>
             <div className="mb-6 text-gray-700 dark:text-gray-200 text-center">
-              <p>This is a placeholder for the interactive tutorial. Here you will learn how to play RPSOnline!</p>
+              <p>This is a placeholder for the interactive tutorial. Here you will learn how to play Tacto!</p>
               <p className="mt-2">(You can expand this with real steps later.)</p>
             </div>
             <button

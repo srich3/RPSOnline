@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { User, AuthError, AuthResponse, OAuthResponse } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../types/database';
+import { useUserStore } from '../../store/userStore';
+import { useGameStore } from '../../store/gameStore';
 
 type UserProfile = Database['public']['Tables']['users']['Row'];
 
@@ -33,6 +35,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Get store clear functions
+  const clearUserData = useUserStore(state => state.clearUserData);
+  const clearGameData = useGameStore(state => state.clearGameData);
 
   // Fetch user profile when user changes
   const fetchUserProfile = async (userId: string) => {
@@ -41,7 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.error('Error fetching user profile:', error);
@@ -64,21 +70,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Helper to ensure a users row exists for every auth user
   const ensureUserProfile = async (user: User) => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    if (!data) {
-      await supabase.from('users').insert({
-        id: user.id,
-        username: '', // or user.email.split('@')[0] as a default
-        wins: 0,
-        losses: 0,
-        rating: 100, // Set new player rating to 100
-        tutorial_complete: false,
-        created_at: new Date().toISOString(),
-      });
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (!data && error?.code !== 'PGRST116') {
+        console.error('Error checking user profile:', error);
+        return;
+      }
+      
+      if (!data) {
+        // No profile exists, create one with default values
+        console.log('Creating default user profile for:', user.id);
+        const { error: insertError } = await supabase.from('users').insert({
+          id: user.id,
+          username: '', // Empty username - user will set this later
+          wins: 0,
+          losses: 0,
+          rating: 1000,
+          tutorial_complete: false,
+          created_at: new Date().toISOString(),
+        });
+        
+        if (insertError) {
+          // If insert fails due to duplicate key, profile already exists
+          if (insertError.code === '23505') {
+            console.log('Profile already exists for user:', user.id);
+          } else {
+            console.error('Error creating default profile:', insertError);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Exception in ensureUserProfile:', err);
     }
   };
 
@@ -86,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Ensure profile exists for all users
         await ensureUserProfile(session.user);
         await fetchUserProfile(session.user.id);
       } else {
@@ -115,7 +143,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = (email: string, password: string) => 
     supabase.auth.signUp({ email, password });
     
-  const signOutUser = () => supabase.auth.signOut();
+  const signOutUser = async () => {
+    try {
+      console.log('Starting comprehensive logout...');
+      
+      // Clear all Supabase auth data
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Error during Supabase signOut:', error);
+      }
+      
+      // Clear local state
+      setUser(null);
+      setProfile(null);
+      
+      // Clear all store data
+      clearUserData();
+      clearGameData();
+      
+      // Clear localStorage and sessionStorage
+      if (typeof window !== 'undefined') {
+        // Clear all localStorage items
+        localStorage.clear();
+        
+        // Clear all sessionStorage items
+        sessionStorage.clear();
+        
+        // Clear any cookies that might be set
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+        
+        console.log('All local storage and cookies cleared');
+      }
+      
+      // Force a hard refresh to clear any cached data
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+      
+      return { error: null };
+    } catch (err) {
+      console.error('Error during logout:', err);
+      return { error: err as AuthError };
+    }
+  };
 
   const signInWithProvider = (provider: 'google' | 'github') => {
     return supabase.auth.signInWithOAuth({ 

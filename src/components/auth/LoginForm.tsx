@@ -34,9 +34,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
         setError(error.message);
       } else {
         setSuccess(true);
-        // Redirect to dashboard after a short delay
+        // Redirect to landing page after a short delay to handle tutorial routing
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push('/landing');
         }, 1000);
       }
     } catch (err) {
@@ -76,14 +76,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup, onClose 
             Welcome Back
           </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Sign in to continue playing RPSOnline
+            Sign in to continue playing Tacto
           </p>
         </div>
         {success ? (
           <div className="text-green-600 dark:text-green-400 text-center font-semibold text-lg">
             Login successful!<br />
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Redirecting to dashboard...
+              Redirecting...
             </span>
           </div>
         ) : (

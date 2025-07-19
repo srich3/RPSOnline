@@ -10,18 +10,22 @@ ALTER TABLE public.game_queue ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for game_queue table
 -- Users can view their own queue entries
+DROP POLICY IF EXISTS "Users can view own queue entries" ON public.game_queue;
 CREATE POLICY "Users can view own queue entries" ON public.game_queue
     FOR SELECT USING (auth.uid() = user_id);
 
 -- Matchmaking system can view all queue entries for processing
+DROP POLICY IF EXISTS "Matchmaking can view all queue entries" ON public.game_queue;
 CREATE POLICY "Matchmaking can view all queue entries" ON public.game_queue
     FOR SELECT USING (true);
 
 -- Users can insert their own queue entries
+DROP POLICY IF EXISTS "Users can insert own queue entries" ON public.game_queue;
 CREATE POLICY "Users can insert own queue entries" ON public.game_queue
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Users can delete their own queue entries
+DROP POLICY IF EXISTS "Users can delete own queue entries" ON public.game_queue;
 CREATE POLICY "Users can delete own queue entries" ON public.game_queue
     FOR DELETE USING (auth.uid() = user_id);
 
@@ -33,6 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_game_queue_created_at ON public.game_queue(create
 CREATE UNIQUE INDEX IF NOT EXISTS idx_game_queue_unique_user ON public.game_queue(user_id);
 
 -- Function to process matchmaking
+
+DROP TRIGGER IF EXISTS trigger_process_matchmaking ON game_queue;
+DROP FUNCTION IF EXISTS process_matchmaking;
 CREATE OR REPLACE FUNCTION process_matchmaking()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -87,7 +94,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to process matchmaking when queue changes
-DROP TRIGGER IF EXISTS trigger_process_matchmaking ON game_queue;
 CREATE TRIGGER trigger_process_matchmaking
     AFTER INSERT ON game_queue
     FOR EACH ROW

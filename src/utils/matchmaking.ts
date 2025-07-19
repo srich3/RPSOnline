@@ -108,13 +108,10 @@ export async function leaveMatchmakingQueue(userId: string): Promise<boolean> {
 
     if (dbError) {
       console.error('Error removing from database queue:', dbError);
+      return false;
     }
 
-    // Leave the presence channel
-    const channel = supabase.channel(CHANNELS.QUEUE);
-    await channel.untrack();
-    await channel.unsubscribe();
-
+    console.log('✅ Successfully left matchmaking queue');
     return true;
   } catch (error) {
     console.error('Error leaving matchmaking queue:', error);
@@ -122,191 +119,10 @@ export async function leaveMatchmakingQueue(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Process the queue to find matches using database queries
- */
-async function processQueueForMatches(): Promise<void> {
-  try {
-    console.log('🔄 Processing queue for matches...');
-    
-    // Get all players in queue with their profiles
-    const { data: queueEntries, error: queueError } = await supabase
-      .from('game_queue')
-      .select(`
-        user_id,
-        created_at,
-        users (
-          id,
-          username,
-          rating
-        )
-      `)
-      .order('created_at', { ascending: true });
+// Note: Matchmaking is now handled by database triggers in PostgreSQL
+// The process_matchmaking() function automatically creates matches when players join the queue
 
-    if (queueError) {
-      console.error('Error fetching queue:', queueError);
-      return;
-    }
-
-    if (!queueEntries || queueEntries.length < 2) {
-      console.log('Not enough players for matching');
-      return;
-    }
-
-    console.log(`Processing ${queueEntries.length} players in queue`);
-
-    const processedPlayers = new Set<string>();
-    const matches: MatchResult[] = [];
-
-    // Find matches
-    for (const entry of queueEntries) {
-      if (processedPlayers.has(entry.user_id)) continue;
-
-      const player = {
-        user_id: entry.user_id,
-        username: entry.users.username,
-        rating: entry.users.rating,
-        joined_at: new Date(entry.created_at).getTime(),
-      };
-
-      const candidates = queueEntries
-        .filter(e => e.user_id !== entry.user_id && !processedPlayers.has(e.user_id))
-        .map(e => ({
-          user_id: e.user_id,
-          username: e.users.username,
-          rating: e.users.rating,
-          joined_at: new Date(e.created_at).getTime(),
-        }));
-
-      const match = findBestMatch(player, candidates);
-
-      if (match) {
-        matches.push(match);
-        processedPlayers.add(match.player1_id);
-        processedPlayers.add(match.player2_id);
-        console.log(`✅ Found match: ${match.player1_id} vs ${match.player2_id}`);
-      }
-    }
-
-    // Create games and notify players
-    for (const match of matches) {
-      await createMatchAndNotify(match);
-    }
-
-  } catch (error) {
-    console.error('Error processing queue:', error);
-  }
-}
-
-/**
- * Find the best match for a player
- */
-function findBestMatch(player: QueuePresence, candidates: QueuePresence[]): MatchResult | null {
-  if (candidates.length === 0) return null;
-
-  // Try expanding rating ranges
-  for (let iteration = 0; iteration < MATCHMAKING_CONFIG.MAX_EXPANSION_ITERATIONS; iteration++) {
-    const ratingRange = MATCHMAKING_CONFIG.MAX_RATING_DIFFERENCE + 
-      (iteration * MATCHMAKING_CONFIG.EXPANDING_RATING_RANGE);
-
-    const eligibleCandidates = candidates.filter(candidate => {
-      const ratingDiff = Math.abs(candidate.rating - player.rating);
-      const meetsRatingCriteria = ratingDiff <= ratingRange;
-      const meetsTimeCriteria = (Date.now() - candidate.joined_at) >= 
-        (iteration * 1000); // 1 second per iteration
-      
-      return meetsRatingCriteria && meetsTimeCriteria;
-    });
-
-    if (eligibleCandidates.length > 0) {
-      // Find best match (closest rating and longest wait time)
-      const bestMatch = eligibleCandidates.reduce((best, current) => {
-        const bestScore = calculateMatchScore(player.rating, best.rating, best.joined_at);
-        const currentScore = calculateMatchScore(player.rating, current.rating, current.joined_at);
-        return currentScore > bestScore ? current : best;
-      });
-
-      return {
-        player1_id: player.user_id,
-        player2_id: bestMatch.user_id,
-        player1_rating: player.rating,
-        player2_rating: bestMatch.rating,
-        rating_difference: Math.abs(player.rating - bestMatch.rating),
-      };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Calculate match score
- */
-function calculateMatchScore(playerRating: number, opponentRating: number, joinTime: number): number {
-  const ratingDifference = Math.abs(playerRating - opponentRating);
-  const ratingScore = Math.max(0, 1000 - ratingDifference);
-  const timeScore = Math.min((Date.now() - joinTime) / 1000 * 10, 500);
-  
-  return ratingScore + timeScore;
-}
-
-/**
- * Create a match and notify both players
- */
-async function createMatchAndNotify(match: MatchResult): Promise<void> {
-  try {
-    console.log(`🎮 Creating match: ${match.player1_id} vs ${match.player2_id}`);
-    
-    // Create the game
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .insert({
-        player1_id: match.player1_id,
-        player2_id: match.player2_id,
-        status: 'waiting',
-        current_player: match.player1_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (gameError) {
-      console.error('Error creating game:', gameError);
-      return;
-    }
-
-    console.log(`✅ Game created: ${game.id}`);
-
-    // Remove both players from queue
-    await supabase
-      .from('game_queue')
-      .delete()
-      .in('user_id', [match.player1_id, match.player2_id]);
-
-    // Send match notification to both players
-    const matchMessage: MatchMessage = {
-      type: 'match_found',
-      game_id: game.id,
-      player1_id: match.player1_id,
-      player2_id: match.player2_id,
-      timestamp: Date.now(),
-    };
-
-    // Send to matchmaking broadcast channel
-    const channel = supabase.channel(CHANNELS.MATCHMAKING);
-    await channel.send({
-      type: 'broadcast',
-      event: 'match_found',
-      payload: matchMessage,
-    });
-
-    console.log(`📢 Match notification sent for game: ${game.id}`);
-
-  } catch (error) {
-    console.error('Error creating match and notifying:', error);
-  }
-}
+// Note: Match creation is now handled by database triggers in PostgreSQL
 
 /**
  * Subscribe to matchmaking events

@@ -24,6 +24,14 @@ export interface MatchMessage {
   timestamp: number;
 }
 
+export interface DeclineMessage {
+  type: 'match_declined';
+  game_id: string;
+  declined_by: string;
+  other_player: string;
+  timestamp: number;
+}
+
 export interface QueuePresence {
   user_id: string;
   username: string;
@@ -250,6 +258,9 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
 
     console.log('Game found:', game);
     
+    // Get the other player's ID
+    const otherPlayerId = game.player1_id === userId ? game.player2_id : game.player1_id;
+    
     // Delete the game
     const { error: gameError } = await supabase
       .from('games')
@@ -263,19 +274,34 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
 
     console.log('Game deleted successfully');
 
-    // Send decline notification
-    const channel = supabase.channel(CHANNELS.MATCHMAKING);
-    await channel.send({
-      type: 'broadcast',
-      event: 'match_declined',
-      payload: {
-        type: 'match_declined',
-        game_id: gameId,
-        player1_id: userId,
-        player2_id: '', // Will be filled by the other player
-        timestamp: Date.now(),
-      },
-    });
+    // Remove the declining player from the queue
+    const { error: queueError } = await supabase
+      .from('game_queue')
+      .delete()
+      .eq('user_id', userId);
+
+    if (queueError) {
+      console.error('Error removing player from queue:', queueError);
+      // Don't fail the operation if queue removal fails
+    } else {
+      console.log('Player removed from queue after declining');
+    }
+
+    // Send decline notification to the other player
+    if (otherPlayerId) {
+      const channel = supabase.channel(CHANNELS.MATCHMAKING);
+      await channel.send({
+        type: 'broadcast',
+        event: 'match_declined',
+        payload: {
+          type: 'match_declined',
+          game_id: gameId,
+          declined_by: userId,
+          other_player: otherPlayerId,
+          timestamp: Date.now(),
+        },
+      });
+    }
 
     console.log('❌ Match declined successfully');
     return true;

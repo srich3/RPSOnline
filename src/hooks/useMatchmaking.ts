@@ -10,7 +10,8 @@ import {
   acceptMatch as acceptMatchUtil,
   declineMatch as declineMatchUtil,
   startQueueCleanup,
-  stopQueueCleanup
+  stopQueueCleanup,
+  type DeclineMessage
 } from '../utils/matchmaking';
 
 interface MatchmakingState {
@@ -430,12 +431,21 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       if (success) {
         console.log('❌ Match declined');
         
-        // Clear match state and rejoin queue
+        // Clear match state and queue state
+        clearQueueState();
         setState(prev => ({ 
           ...prev, 
           matchFound: null,
+          isInQueue: false,
+          queuePosition: null,
+          estimatedWaitTime: null,
           loading: false,
+          error: null,
         }));
+
+        // Update refs
+        matchFoundRef.current = null;
+        isInQueueRef.current = false;
 
         // Rejoin queue after a short delay
         setTimeout(() => {
@@ -453,7 +463,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to decline match'
       }));
     }
-  }, [user?.id, joinQueue]);
+  }, [user?.id, joinQueue, clearQueueState]);
 
   // Setup matchmaking subscription
   const setupMatchmakingSubscription = useCallback(async () => {
@@ -601,16 +611,32 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         (payload) => {
           console.log('❌ Game deleted (match declined):', payload);
           
-          // Clear match state and rejoin queue
+          // Clear match state and queue state
+          clearQueueState();
           setState(prev => ({ 
             ...prev, 
             matchFound: null,
+            isInQueue: false,
+            queuePosition: null,
+            estimatedWaitTime: null,
+            loading: false,
+            error: null,
+          }));
+          
+          // Update refs
+          matchFoundRef.current = null;
+          isInQueueRef.current = false;
+          
+          // Show notification that other player declined
+          setState(prev => ({ 
+            ...prev, 
+            error: 'The other player declined the match. Rejoining queue...',
           }));
           
           // Rejoin queue after a short delay
           setTimeout(() => {
             joinQueue();
-          }, 2000);
+          }, 3000);
         }
       )
       .on(
@@ -648,6 +674,40 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             
             // Update ref
             isInQueueRef.current = false;
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'match_declined' },
+        (payload) => {
+          console.log('❌ Received match declined notification:', payload);
+          const message = payload.payload as DeclineMessage;
+          
+          // Check if this decline is for our current match
+          if (matchFoundRef.current?.id === message.game_id) {
+            console.log('❌ Our match was declined by the other player');
+            
+            // Clear match state and queue state
+            clearQueueState();
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: null,
+              isInQueue: false,
+              queuePosition: null,
+              estimatedWaitTime: null,
+              loading: false,
+              error: 'The other player declined the match. Rejoining queue...',
+            }));
+            
+            // Update refs
+            matchFoundRef.current = null;
+            isInQueueRef.current = false;
+            
+            // Rejoin queue after a short delay
+            setTimeout(() => {
+              joinQueue();
+            }, 3000);
           }
         }
       )

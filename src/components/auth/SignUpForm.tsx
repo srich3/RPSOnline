@@ -28,7 +28,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
   const [usernameError, setUsernameError] = useState('');
   const [success, setSuccess] = useState(false);
   
-  const { signUp } = useAuth();
+  const { signUp, refreshProfile } = useAuth();
   const router = useRouter();
 
   // Username validation rules
@@ -190,6 +190,15 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
           } else {
             console.log('Profile created successfully with username:', username);
             setSuccess(true);
+            
+            // Refresh the profile in AuthProvider
+            try {
+              await refreshProfile();
+              console.log('Profile refreshed successfully');
+            } catch (err) {
+              console.error('Error refreshing profile:', err);
+            }
+            
             // Redirect to landing page after a short delay to handle tutorial routing
             setTimeout(() => {
               router.push('/landing');

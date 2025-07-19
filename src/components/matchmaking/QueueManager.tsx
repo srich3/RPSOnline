@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, X, Clock, Users, Trophy, AlertCircle } from 'lucide-react';
 import { useMatchmaking } from '../../hooks/useMatchmaking';
 import { useAuth } from '../../components/auth/AuthProvider';
+import MatchFound from './MatchFound';
 
 interface QueueManagerProps {
   className?: string;
@@ -207,70 +208,13 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
       {/* Match Found Modal */}
       <AnimatePresence>
         {showMatchModal && matchFound && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowMatchModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-xl border border-gray-700 max-w-md w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center space-y-4">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring" }}
-                  className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto"
-                >
-                  <Trophy className="w-10 h-10 text-green-400" />
-                </motion.div>
-
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-2">Match Found!</h3>
-                  <p className="text-gray-400 text-sm">
-                    A suitable opponent has been found. Ready to play?
-                  </p>
-                </div>
-
-                <div className="bg-gray-700/50 rounded-lg p-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-400 text-sm">Opponent Rating:</span>
-                    <span className="text-white font-medium">
-                      {matchFound.player1_id === user.id 
-                        ? 'Calculating...' 
-                        : 'Calculating...'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex space-x-3">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleDeclineMatch}
-                    className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                  >
-                    Decline
-                  </motion.button>
-                  
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleAcceptMatch}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-                  >
-                    Accept
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+          <MatchFound
+            match={matchFound}
+            onAccept={handleAcceptMatch}
+            onDecline={handleDeclineMatch}
+            onClose={() => setShowMatchModal(false)}
+            loading={loading}
+          />
         )}
       </AnimatePresence>
     </>

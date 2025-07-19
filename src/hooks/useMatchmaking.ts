@@ -4,6 +4,14 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useGameStore } from '../store/gameStore';
 import type { Game, GameQueue } from '../types/database';
+import { 
+  findMatch, 
+  createGame as createMatchGame, 
+  removePlayersFromQueue,
+  processQueue,
+  startQueueCleanup,
+  stopQueueCleanup
+} from '../utils/matchmaking';
 
 interface MatchmakingState {
   isInQueue: boolean;
@@ -268,98 +276,59 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
   }, [joinQueue]);
 
-  // Find suitable opponent
+  // Find suitable opponent using new matchmaking utilities
   const findOpponent = useCallback(async (): Promise<string | null> => {
     if (!user?.id || !profile) return null;
 
     console.log('🔍 Finding opponent for player:', user.id);
 
     try {
-      // Get players in queue with similar rating
-      const { data: queuePlayers, error } = await supabase
-        .from('game_queue')
-        .select(`
-          user_id,
-          users!inner (
-            id,
-            username,
-            rating
-          )
-        `)
-        .neq('user_id', user.id)
-        .gte('users.rating', (profile.rating || 100) - ratingRange)
-        .lte('users.rating', (profile.rating || 100) + ratingRange)
-        .order('created_at', { ascending: true })
-        .limit(5);
-
-      if (error) {
-        throw error;
+      const match = await findMatch(user.id, profile.rating || 100);
+      
+      if (match) {
+        console.log('🎯 Match found:', match);
+        return match.player2_id;
       }
 
-      if (!queuePlayers || queuePlayers.length === 0) {
-        console.log('👥 No suitable opponents found');
-        return null;
-      }
-
-      // Select the best match (closest rating)
-      const bestMatch = queuePlayers.reduce((best, current) => {
-        const bestDiff = Math.abs((best.users.rating || 100) - (profile.rating || 100));
-        const currentDiff = Math.abs((current.users.rating || 100) - (profile.rating || 100));
-        return currentDiff < bestDiff ? current : best;
-      });
-
-      console.log('🎯 Best match found:', bestMatch);
-      return bestMatch.user_id;
+      console.log('👥 No suitable opponents found');
+      return null;
 
     } catch (error) {
       console.error('❌ Error finding opponent:', error);
       return null;
     }
-  }, [user?.id, profile, ratingRange]);
+  }, [user?.id, profile]);
 
-  // Create game with opponent
+  // Create game with opponent using new matchmaking utilities
   const createGame = useCallback(async (opponentId: string): Promise<Game | null> => {
     if (!user?.id) return null;
 
     console.log('🎮 Creating game with opponent:', opponentId);
 
     try {
-      const { data: game, error } = await supabase
-        .from('games')
-        .insert({
-          player1_id: user.id,
-          player2_id: opponentId,
-          status: 'waiting',
-          game_state: {
-            squares: Array(9).fill(null),
-            player1_points: 3,
-            player2_points: 3,
-            current_turn: {
-              player_id: user.id,
-              phase: 'planning',
-              time_remaining: 30,
-              actions: [],
-            },
-            player1_submitted: false,
-            player2_submitted: false,
-            turn_start_time: new Date().toISOString(),
-          },
-        })
-        .select()
-        .single();
+      const match = {
+        player1_id: user.id,
+        player2_id: opponentId,
+        player1_rating: profile?.rating || 100,
+        player2_rating: 100, // Will be updated when we get opponent profile
+        rating_difference: 0,
+      };
 
-      if (error) {
-        throw error;
+      const game = await createMatchGame(match);
+      
+      if (game) {
+        // Remove both players from queue
+        await removePlayersFromQueue([user.id, opponentId]);
+        console.log('✅ Game created and players removed from queue:', game);
       }
 
-      console.log('✅ Game created:', game);
       return game;
 
     } catch (error) {
       console.error('❌ Error creating game:', error);
       return null;
     }
-  }, [user?.id]);
+  }, [user?.id, profile]);
 
   // Handle queue changes
   const handleQueueChange = useCallback((payload: RealtimePostgresChangesPayload<GameQueue>) => {
@@ -492,9 +461,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     if (!user?.id) return;
 
     setupQueueSubscription();
+    
+    // Start queue cleanup
+    startQueueCleanup();
 
     return () => {
       cleanup();
+      stopQueueCleanup();
     };
   }, [user?.id, setupQueueSubscription, cleanup]);
 

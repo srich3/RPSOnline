@@ -262,17 +262,21 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
     const otherPlayerId = game.player1_id === userId ? game.player2_id : game.player1_id;
     
     // Delete the game
-    const { error: gameError } = await supabase
+    const { data: deletedGame, error: gameError } = await supabase
       .from('games')
       .delete()
-      .eq('id', gameId);
+      .eq('id', gameId)
+      .select();
 
     if (gameError) {
       console.error('Error deleting game:', gameError);
+      console.error('Game ID:', gameId);
+      console.error('User ID:', userId);
+      console.error('Game data:', game);
       return false;
     }
 
-    console.log('Game deleted successfully');
+    console.log('Game deleted successfully:', deletedGame);
 
     // Remove the declining player from the queue
     const { error: queueError } = await supabase

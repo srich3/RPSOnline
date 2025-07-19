@@ -311,7 +311,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: 1,
         }));
 
-        // Start wait time tracking
+        // Start wait time tracking and periodic match checking
         let waitTime = 0;
         waitTimeRef.current = setInterval(() => {
           waitTime += 1;
@@ -324,6 +324,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           if (waitTime >= maxWaitTime) {
             console.log('⏰ Max wait time reached, leaving queue');
             leaveQueue();
+          }
+          
+          // Check for new games every 2 seconds as a fallback
+          if (waitTime % 2 === 0) {
+            checkForNewGames();
           }
         }, 1000);
       } else {
@@ -463,6 +468,58 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
   }, [user?.id, clearQueueState]);
 
+  // Check for new games (fallback mechanism)
+  const checkForNewGames = useCallback(async () => {
+    if (!user?.id || !state.isInQueue) return;
+
+    try {
+      const { data: newGame, error } = await supabase
+        .from('games')
+        .select('*')
+        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (newGame && !error && !matchFoundRef.current) {
+        console.log('🎮 Found new game via periodic check:', newGame);
+        
+        // Clear queue state from localStorage
+        clearQueueState();
+        
+        // Stop wait time tracking
+        if (waitTimeRef.current) {
+          clearInterval(waitTimeRef.current);
+          waitTimeRef.current = null;
+        }
+        
+        setState(prev => ({ 
+          ...prev, 
+          matchFound: newGame,
+          isInQueue: false,
+          queuePosition: null,
+          estimatedWaitTime: null,
+          loading: false,
+          error: null,
+        }));
+        
+        // Update refs
+        matchFoundRef.current = newGame;
+        isInQueueRef.current = false;
+        
+        // Auto-accept if enabled
+        if (autoAcceptMatch) {
+          setTimeout(() => {
+            acceptMatch(newGame.id);
+          }, 1000);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for new games:', error);
+    }
+  }, [user?.id, state.isInQueue, autoAcceptMatch, acceptMatch, clearQueueState]);
+
   // Setup matchmaking subscription
   const setupMatchmakingSubscription = useCallback(async () => {
     if (!user?.id) return;
@@ -542,6 +599,61 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
                 acceptMatch(game.id);
               }, 1000);
             }
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'match_found' },
+        (payload) => {
+          console.log('🎯 Received match_found broadcast:', payload);
+          const message = payload.payload;
+          
+          // Check if this match is for us
+          if (message.player1_id === user.id || message.player2_id === user.id) {
+            console.log('🎮 Match found for us via broadcast!');
+            
+            // Fetch the game details
+            supabase
+              .from('games')
+              .select('*')
+              .eq('id', message.game_id)
+              .single()
+              .then(({ data: game, error }) => {
+                if (game && !error) {
+                  console.log('🎮 Fetched game details:', game);
+                  
+                  // Clear queue state from localStorage
+                  clearQueueState();
+                  
+                  // Stop wait time tracking
+                  if (waitTimeRef.current) {
+                    clearInterval(waitTimeRef.current);
+                    waitTimeRef.current = null;
+                  }
+                  
+                  setState(prev => ({ 
+                    ...prev, 
+                    matchFound: game,
+                    isInQueue: false,
+                    queuePosition: null,
+                    estimatedWaitTime: null,
+                    loading: false,
+                    error: null,
+                  }));
+                  
+                  // Update refs
+                  matchFoundRef.current = game;
+                  isInQueueRef.current = false;
+                  
+                  // Auto-accept if enabled
+                  if (autoAcceptMatch) {
+                    setTimeout(() => {
+                      acceptMatch(game.id);
+                    }, 1000);
+                  }
+                }
+              });
           }
         }
       )

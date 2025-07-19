@@ -97,7 +97,29 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
 
         {/* Queue Status */}
         <AnimatePresence mode="wait">
-          {!isInQueue && !matchFound ? (
+          {loading && !isInQueue && !matchFound ? (
+            <motion.div
+              key="restoring-queue"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-4"
+            >
+              <div className="text-center">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-16 h-16 text-blue-400 mx-auto mb-4"
+                >
+                  <Clock className="w-full h-full" />
+                </motion.div>
+                <h4 className="text-white font-medium mb-2">Restoring Queue</h4>
+                <p className="text-gray-400 text-sm mb-6">
+                  Checking if you were in a queue before...
+                </p>
+              </div>
+            </motion.div>
+          ) : !isInQueue && !matchFound ? (
             <motion.div
               key="join-queue"
               initial={{ opacity: 0, y: 20 }}

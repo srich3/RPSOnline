@@ -28,6 +28,19 @@ interface UseMatchmakingOptions {
   ratingRange?: number; // for skill-based matching
 }
 
+// localStorage keys
+const QUEUE_STORAGE_KEY = 'tacto-matchmaking-queue';
+const QUEUE_TIMESTAMP_KEY = 'tacto-matchmaking-timestamp';
+
+// Queue state interface for localStorage
+interface QueueStorageState {
+  userId: string;
+  username: string;
+  rating: number;
+  joinedAt: number;
+  estimatedWaitTime: number;
+}
+
 export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const { user, profile } = useAuth();
   const { startNewGame } = useGameStore();
@@ -49,6 +62,124 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
   const waitTimeRef = useRef<NodeJS.Timeout | null>(null);
   const matchmakingSubscription = useRef<any>(null);
+
+  // Save queue state to localStorage
+  const saveQueueState = useCallback((queueState: QueueStorageState) => {
+    try {
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queueState));
+      localStorage.setItem(QUEUE_TIMESTAMP_KEY, Date.now().toString());
+      console.log('💾 Queue state saved to localStorage:', queueState);
+    } catch (error) {
+      console.error('Error saving queue state to localStorage:', error);
+    }
+  }, []);
+
+  // Load queue state from localStorage
+  const loadQueueState = useCallback((): QueueStorageState | null => {
+    try {
+      const queueData = localStorage.getItem(QUEUE_STORAGE_KEY);
+      const timestamp = localStorage.getItem(QUEUE_TIMESTAMP_KEY);
+      
+      if (!queueData || !timestamp) {
+        return null;
+      }
+
+      const queueState: QueueStorageState = JSON.parse(queueData);
+      const savedTime = parseInt(timestamp, 10);
+      const now = Date.now();
+      
+      // Check if the saved state is too old (more than 1 hour)
+      if (now - savedTime > 60 * 60 * 1000) {
+        console.log('🧹 Clearing old queue state from localStorage');
+        clearQueueState();
+        return null;
+      }
+
+      console.log('📂 Queue state loaded from localStorage:', queueState);
+      return queueState;
+    } catch (error) {
+      console.error('Error loading queue state from localStorage:', error);
+      return null;
+    }
+  }, []);
+
+  // Clear queue state from localStorage
+  const clearQueueState = useCallback(() => {
+    try {
+      localStorage.removeItem(QUEUE_STORAGE_KEY);
+      localStorage.removeItem(QUEUE_TIMESTAMP_KEY);
+      console.log('🗑️ Queue state cleared from localStorage');
+    } catch (error) {
+      console.error('Error clearing queue state from localStorage:', error);
+    }
+  }, []);
+
+  // Restore queue state on page load
+  const restoreQueueState = useCallback(async () => {
+    if (!user?.id || !profile) return;
+
+    const savedState = loadQueueState();
+    if (!savedState || savedState.userId !== user.id) {
+      return;
+    }
+
+    console.log('🔄 Restoring queue state for user:', user.id);
+    setState(prev => ({ ...prev, loading: true }));
+
+    try {
+      // Check if user is still in the database queue
+      const { data: queueEntry, error } = await supabase
+        .from('game_queue')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error || !queueEntry) {
+        console.log('⚠️ User not found in database queue, clearing localStorage');
+        clearQueueState();
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      // Restore the queue state
+      const waitTime = Math.floor((Date.now() - savedState.joinedAt) / 1000);
+      
+      setState(prev => ({
+        ...prev,
+        isInQueue: true,
+        queuePosition: 1,
+        estimatedWaitTime: waitTime,
+        loading: false,
+      }));
+
+      console.log('✅ Queue state restored successfully');
+
+      // Restart wait time tracking
+      if (waitTimeRef.current) {
+        clearInterval(waitTimeRef.current);
+      }
+
+      waitTimeRef.current = setInterval(() => {
+        setState(prev => {
+          const newWaitTime = (prev.estimatedWaitTime || 0) + 1;
+          
+          // Auto-cancel if max wait time reached
+          if (newWaitTime >= maxWaitTime) {
+            console.log('⏰ Max wait time reached, leaving queue');
+            leaveQueue();
+            return prev;
+          }
+          
+          return { ...prev, estimatedWaitTime: newWaitTime };
+        });
+      }, 1000);
+
+    } catch (error) {
+      console.error('❌ Error restoring queue state:', error);
+      clearQueueState();
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  }, [user?.id, profile, loadQueueState, clearQueueState, maxWaitTime]);
 
   // Join matchmaking queue
   const joinQueue = useCallback(async () => {
@@ -74,6 +205,17 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       if (success) {
         console.log('✅ Joined matchmaking queue');
+        
+        // Save queue state to localStorage
+        const queueState: QueueStorageState = {
+          userId: user.id,
+          username: profile.username,
+          rating: profile.rating,
+          joinedAt: Date.now(),
+          estimatedWaitTime: 0,
+        };
+        saveQueueState(queueState);
+
         setState(prev => ({ 
           ...prev, 
           isInQueue: true, 
@@ -108,7 +250,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to join queue'
       }));
     }
-  }, [user?.id, profile, state.isInQueue, maxWaitTime]);
+  }, [user?.id, profile, state.isInQueue, maxWaitTime, saveQueueState]);
 
   // Leave matchmaking queue
   const leaveQueue = useCallback(async () => {
@@ -122,6 +264,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       if (success) {
         console.log('✅ Left queue');
+        
+        // Clear queue state from localStorage
+        clearQueueState();
+        
         setState(prev => ({ 
           ...prev, 
           isInQueue: false, 
@@ -148,7 +294,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to leave queue'
       }));
     }
-  }, [user?.id, state.isInQueue]);
+  }, [user?.id, state.isInQueue, clearQueueState]);
 
   // Accept match
   const acceptMatch = useCallback(async (gameId: string) => {
@@ -162,6 +308,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       if (success) {
         console.log('✅ Match accepted');
+        
+        // Clear queue state from localStorage
+        clearQueueState();
         
         // Start the game in the store
         if (state.matchFound) {
@@ -195,7 +344,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to accept match'
       }));
     }
-  }, [user?.id, state.matchFound, startNewGame, leaveQueue]);
+  }, [user?.id, state.matchFound, startNewGame, leaveQueue, clearQueueState]);
 
   // Decline match
   const declineMatch = useCallback(async (gameId: string) => {
@@ -279,6 +428,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       (message) => {
         console.log('✅ Match accepted by opponent:', message);
         
+        // Clear queue state from localStorage
+        clearQueueState();
+        
         // Start the game
         if (state.matchFound) {
           startNewGame(
@@ -315,13 +467,17 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }, 2000);
       }
     );
-  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, leaveQueue, joinQueue]);
+  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, leaveQueue, joinQueue, clearQueueState]);
 
-  // Setup subscription on mount
+  // Setup subscription and restore state on mount
   useEffect(() => {
     if (!user?.id) return;
 
-    setupMatchmakingSubscription();
+    // Restore queue state first
+    restoreQueueState().then(() => {
+      // Then setup subscription
+      setupMatchmakingSubscription();
+    });
     
     // Start queue cleanup
     startQueueCleanup();
@@ -340,7 +496,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       // Stop queue cleanup
       stopQueueCleanup();
     };
-  }, [user?.id, setupMatchmakingSubscription]);
+  }, [user?.id, restoreQueueState, setupMatchmakingSubscription]);
 
   // Cleanup function
   const cleanup = useCallback(() => {

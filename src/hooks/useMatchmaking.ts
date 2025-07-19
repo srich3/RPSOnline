@@ -447,10 +447,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         matchFoundRef.current = null;
         isInQueueRef.current = false;
 
-        // Rejoin queue after a short delay
-        setTimeout(() => {
-          joinQueue();
-        }, 2000);
+        // Don't rejoin queue - the declining player should stay out
+        // The other player will be notified and can rejoin if they want
       } else {
         throw new Error('Failed to decline match');
       }
@@ -463,7 +461,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to decline match'
       }));
     }
-  }, [user?.id, joinQueue, clearQueueState]);
+  }, [user?.id, clearQueueState]);
 
   // Setup matchmaking subscription
   const setupMatchmakingSubscription = useCallback(async () => {
@@ -633,10 +631,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             error: 'The other player declined the match. Rejoining queue...',
           }));
           
-          // Rejoin queue after a short delay
-          setTimeout(() => {
-            joinQueue();
-          }, 3000);
+          // Don't automatically rejoin queue here - the decline function will handle it
+          // The other player will be added back to the queue by the decline function
         }
       )
       .on(
@@ -704,10 +700,15 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             matchFoundRef.current = null;
             isInQueueRef.current = false;
             
-            // Rejoin queue after a short delay
-            setTimeout(() => {
-              joinQueue();
-            }, 3000);
+            // Only rejoin queue if we're not the one who declined
+            if (message.declined_by !== user?.id) {
+              console.log('🔄 Rejoining queue as non-declining player');
+              setTimeout(() => {
+                joinQueue();
+              }, 3000);
+            } else {
+              console.log('🚫 Not rejoining queue as declining player');
+            }
           }
         }
       )

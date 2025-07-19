@@ -291,8 +291,32 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
       console.log('Player removed from queue after declining');
     }
 
-    // Send decline notification to the other player
+    // Add the other player back to the queue
     if (otherPlayerId) {
+      // Get the other player's info from the queue or user table
+      const { data: otherPlayer, error: playerError } = await supabase
+        .from('users')
+        .select('username, rating')
+        .eq('id', otherPlayerId)
+        .single();
+
+      if (!playerError && otherPlayer) {
+        const { error: queueError } = await supabase
+          .from('game_queue')
+          .insert({
+            user_id: otherPlayerId,
+            username: otherPlayer.username,
+            rating: otherPlayer.rating,
+          });
+
+        if (queueError) {
+          console.error('Error adding other player back to queue:', queueError);
+        } else {
+          console.log('✅ Added other player back to queue:', otherPlayerId);
+        }
+      }
+
+      // Send decline notification to the other player
       const channel = supabase.channel(CHANNELS.MATCHMAKING);
       await channel.send({
         type: 'broadcast',

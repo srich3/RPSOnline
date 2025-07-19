@@ -311,6 +311,12 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: 1,
         }));
 
+        // Immediately check for existing games (in case match was created while joining)
+        setTimeout(() => {
+          console.log('🔍 Immediate check for games after joining queue');
+          checkForNewGames();
+        }, 500);
+
         // Start wait time tracking and periodic match checking
         let waitTime = 0;
         waitTimeRef.current = setInterval(() => {
@@ -326,8 +332,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             leaveQueue();
           }
           
-          // Check for new games every 2 seconds as a fallback
-          if (waitTime % 2 === 0) {
+          // Check for new games every 1 second as a fallback
+          if (waitTime % 1 === 0) {
             checkForNewGames();
           }
         }, 1000);
@@ -473,6 +479,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     if (!user?.id || !state.isInQueue) return;
 
     try {
+      console.log('🔍 Checking for new games...');
+      
       const { data: newGame, error } = await supabase
         .from('games')
         .select('*')
@@ -484,6 +492,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       if (newGame && !error && !matchFoundRef.current) {
         console.log('🎮 Found new game via periodic check:', newGame);
+        console.log('Current matchFound ref:', matchFoundRef.current);
         
         // Clear queue state from localStorage
         clearQueueState();
@@ -514,6 +523,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             acceptMatch(newGame.id);
           }, 1000);
         }
+      } else if (error) {
+        console.error('Error in periodic game check:', error);
+      } else {
+        console.log('🔍 No new games found in periodic check');
       }
     } catch (error) {
       console.error('Error checking for new games:', error);

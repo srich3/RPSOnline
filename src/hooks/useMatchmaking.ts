@@ -517,20 +517,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     const channel = supabase
       .channel(`matchmaking-${user.id}`)
       
-      // Debug: Listen to ALL events on games table
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'games',
-        },
-        (payload) => {
-          console.log('🔍 ALL games event:', payload.eventType, payload);
-        }
-      )
-      
-      // Test: Listen to ALL events on ANY table
+      // Test: Listen to ALL events on ANY table (most basic test)
       .on(
         'postgres_changes',
         {
@@ -548,6 +535,15 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         { event: 'test' },
         (payload) => {
           console.log('🔍 Broadcast test event:', payload);
+        }
+      )
+      
+      // Test: Listen to presence events
+      .on(
+        'presence',
+        { event: 'sync' },
+        () => {
+          console.log('🔍 Presence sync event received');
         }
       )
       
@@ -718,6 +714,16 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
           subscriptionSetupRef.current = false; // Reset flag on success
+          
+          // Test: Send a broadcast event to verify subscription is working
+          setTimeout(() => {
+            console.log('🧪 Testing broadcast event...');
+            supabase.channel(`matchmaking-${user.id}`).send({
+              type: 'broadcast',
+              event: 'test',
+              payload: { message: 'Test broadcast from subscription setup' }
+            });
+          }, 1000);
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Matchmaking subscription error - will retry in 5s');
           subscriptionSetupRef.current = false; // Reset flag on error

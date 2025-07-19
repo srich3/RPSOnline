@@ -743,8 +743,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             error: 'The other player declined the match. Rejoining queue...',
           }));
           
-          // Don't automatically rejoin queue here - the decline function will handle it
-          // The other player will be added back to the queue by the decline function
+          // Rejoin queue after a short delay for the non-declining player
+          // The declining player won't be in the queue, so they won't rejoin
+          setTimeout(() => {
+            joinQueue();
+          }, 3000);
         }
       )
       .on(

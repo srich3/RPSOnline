@@ -306,21 +306,9 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
         console.log('✅ Added other player back to queue:', otherPlayerId);
       }
 
-      // Send decline notification to the other player
-      console.log('📡 Sending decline notification to channel:', CHANNELS.MATCHMAKING);
-      const channel = supabase.channel(CHANNELS.MATCHMAKING);
-      const result = await channel.send({
-        type: 'broadcast',
-        event: 'match_declined',
-        payload: {
-          type: 'match_declined',
-          game_id: gameId,
-          declined_by: userId,
-          other_player: otherPlayerId,
-          timestamp: Date.now(),
-        },
-      });
-      console.log('📡 Decline notification sent:', result);
+      // Note: The client will detect the game deletion via postgres_changes DELETE event
+      // and handle the decline notification automatically
+      console.log('📡 Game deleted, client will detect via DELETE event');
     }
 
     console.log('❌ Match declined successfully');

@@ -311,13 +311,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: 1,
         }));
 
-        // Immediately check for existing games (in case match was created while joining)
-        setTimeout(() => {
-          console.log('🔍 Immediate check for games after joining queue');
-          checkForNewGames();
-        }, 500);
-
-        // Start wait time tracking and periodic match checking
+        // Start wait time tracking
         let waitTime = 0;
         waitTimeRef.current = setInterval(() => {
           waitTime += 1;
@@ -330,11 +324,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           if (waitTime >= maxWaitTime) {
             console.log('⏰ Max wait time reached, leaving queue');
             leaveQueue();
-          }
-          
-          // Check for new games every 1 second as a fallback
-          if (waitTime % 1 === 0) {
-            checkForNewGames();
           }
         }, 1000);
       } else {
@@ -474,64 +463,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
   }, [user?.id, clearQueueState]);
 
-  // Check for new games (fallback mechanism)
-  const checkForNewGames = useCallback(async () => {
-    if (!user?.id || !state.isInQueue) return;
 
-    try {
-      console.log('🔍 Checking for new games...');
-      
-      const { data: newGame, error } = await supabase
-        .from('games')
-        .select('*')
-        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-        .eq('status', 'waiting')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (newGame && !error && !matchFoundRef.current) {
-        console.log('🎮 Found new game via periodic check:', newGame);
-        console.log('Current matchFound ref:', matchFoundRef.current);
-        
-        // Clear queue state from localStorage
-        clearQueueState();
-        
-        // Stop wait time tracking
-        if (waitTimeRef.current) {
-          clearInterval(waitTimeRef.current);
-          waitTimeRef.current = null;
-        }
-        
-        setState(prev => ({ 
-          ...prev, 
-          matchFound: newGame,
-          isInQueue: false,
-          queuePosition: null,
-          estimatedWaitTime: null,
-          loading: false,
-          error: null,
-        }));
-        
-        // Update refs
-        matchFoundRef.current = newGame;
-        isInQueueRef.current = false;
-        
-        // Auto-accept if enabled
-        if (autoAcceptMatch) {
-          setTimeout(() => {
-            acceptMatch(newGame.id);
-          }, 1000);
-        }
-      } else if (error) {
-        console.error('Error in periodic game check:', error);
-      } else {
-        console.log('🔍 No new games found in periodic check');
-      }
-    } catch (error) {
-      console.error('Error checking for new games:', error);
-    }
-  }, [user?.id, state.isInQueue, autoAcceptMatch, acceptMatch, clearQueueState]);
 
   // Setup matchmaking subscription
   const setupMatchmakingSubscription = useCallback(async () => {

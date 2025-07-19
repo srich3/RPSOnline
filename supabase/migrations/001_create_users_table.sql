@@ -13,18 +13,22 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for users table
 -- Users can read their own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
 CREATE POLICY "Users can view own profile" ON public.users
     FOR SELECT USING (auth.uid() = id);
 
 -- Users can update their own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users
     FOR UPDATE USING (auth.uid() = id);
 
 -- Users can insert their own profile (when they sign up)
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
 CREATE POLICY "Users can insert own profile" ON public.users
     FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Anyone can read public user data (for leaderboards, etc.)
+DROP POLICY IF EXISTS "Anyone can view public user data" ON public.users;
 CREATE POLICY "Anyone can view public user data" ON public.users
     FOR SELECT USING (true);
 

@@ -62,6 +62,8 @@ export interface Database {
           current_player: string | null
           created_at: string
           updated_at: string
+          player1_accepted: boolean
+          player2_accepted: boolean
         }
         Insert: {
           id?: string
@@ -74,6 +76,8 @@ export interface Database {
           current_player?: string | null
           created_at?: string
           updated_at?: string
+          player1_accepted?: boolean
+          player2_accepted?: boolean
         }
         Update: {
           id?: string
@@ -86,6 +90,8 @@ export interface Database {
           current_player?: string | null
           created_at?: string
           updated_at?: string
+          player1_accepted?: boolean
+          player2_accepted?: boolean
         }
         Relationships: [
           {
@@ -197,7 +203,12 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_player_to_queue: {
+        Args: {
+          player_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

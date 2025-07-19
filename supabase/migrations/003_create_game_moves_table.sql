@@ -15,6 +15,7 @@ ALTER TABLE public.game_moves ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for game_moves table
 -- Players can view moves for games they're participating in
+DROP POLICY IF EXISTS "Players can view moves in their games" ON public.game_moves;
 CREATE POLICY "Players can view moves in their games" ON public.game_moves
     FOR SELECT USING (
         EXISTS (
@@ -25,6 +26,7 @@ CREATE POLICY "Players can view moves in their games" ON public.game_moves
     );
 
 -- Players can insert moves for games they're participating in
+DROP POLICY IF EXISTS "Players can insert moves in their games" ON public.game_moves;
 CREATE POLICY "Players can insert moves in their games" ON public.game_moves
     FOR INSERT WITH CHECK (
         player_id = auth.uid() AND
@@ -36,6 +38,7 @@ CREATE POLICY "Players can insert moves in their games" ON public.game_moves
     );
 
 -- Players can update their own moves (for corrections)
+DROP POLICY IF EXISTS "Players can update their own moves" ON public.game_moves;
 CREATE POLICY "Players can update their own moves" ON public.game_moves
     FOR UPDATE USING (player_id = auth.uid());
 

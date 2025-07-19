@@ -43,6 +43,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Fetch user profile when user changes
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log('🔍 Fetching user profile for:', userId);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -50,13 +52,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
       
       if (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('❌ Error fetching user profile:', error);
+        console.error('❌ Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         setProfile(null);
       } else {
+        console.log('✅ User profile fetched successfully:', data);
         setProfile(data);
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('❌ Exception in fetchUserProfile:', error);
       setProfile(null);
     }
   };
@@ -76,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('Checking if profile exists for user:', user.id);
+      console.log('🔍 Checking if profile exists for user:', user.id);
       
       const { data, error } = await supabase
         .from('users')
@@ -85,20 +94,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
       
       if (error && error.code !== 'PGRST116') {
-        console.error('Error checking user profile:', error);
+        console.error('❌ Error checking user profile:', error);
+        console.error('❌ Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         return;
       }
       
       if (!data) {
         // No profile exists, create one with default values
-        console.log('Creating default user profile for:', user.id);
+        console.log('📝 Creating default user profile for:', user.id);
         
         // Generate a simple unique username using timestamp and user ID
         const timestamp = Date.now();
         const userIdSuffix = user.id.slice(0, 8);
         const finalUsername = `user_${userIdSuffix}_${timestamp}`;
         
-        console.log('Generated temporary username for OAuth user:', finalUsername);
+        console.log('🔤 Generated temporary username for OAuth user:', finalUsername);
         
         const { error: insertError } = await supabase.from('users').insert({
           id: user.id,
@@ -113,18 +128,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (insertError) {
           // If insert fails due to duplicate key, profile already exists
           if (insertError.code === '23505') {
-            console.log('Profile already exists for user:', user.id);
+            console.log('✅ Profile already exists for user:', user.id);
           } else {
-            console.error('Error creating default profile:', insertError);
+            console.error('❌ Error creating default profile:', insertError);
+            console.error('❌ Insert error details:', {
+              code: insertError.code,
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint
+            });
           }
         } else {
-          console.log('Successfully created profile with username:', finalUsername);
+          console.log('✅ Successfully created profile with username:', finalUsername);
         }
       } else {
-        console.log('Profile already exists for user:', user.id);
+        console.log('✅ Profile already exists for user:', user.id);
       }
     } catch (err) {
-      console.error('Exception in ensureUserProfile:', err);
+      console.error('❌ Exception in ensureUserProfile:', err);
     }
   };
 

@@ -17,6 +17,7 @@ ALTER TABLE public.games ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for games table
 -- Players can view games they're participating in
+DROP POLICY IF EXISTS "Players can view their games" ON public.games;
 CREATE POLICY "Players can view their games" ON public.games
     FOR SELECT USING (
         auth.uid() = player1_id OR 
@@ -25,6 +26,7 @@ CREATE POLICY "Players can view their games" ON public.games
     );
 
 -- Players can update games they're participating in
+DROP POLICY IF EXISTS "Players can update their games" ON public.games;
 CREATE POLICY "Players can update their games" ON public.games
     FOR UPDATE USING (
         auth.uid() = player1_id OR 
@@ -32,6 +34,7 @@ CREATE POLICY "Players can update their games" ON public.games
     );
 
 -- Anyone can create a game (for matchmaking)
+DROP POLICY IF EXISTS "Anyone can create games" ON public.games;
 CREATE POLICY "Anyone can create games" ON public.games
     FOR INSERT WITH CHECK (auth.uid() = player1_id);
 
@@ -50,7 +53,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_games_updated_at 
+CREATE OR REPLACE TRIGGER  update_games_updated_at 
     BEFORE UPDATE ON public.games 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column(); 

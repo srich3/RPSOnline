@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, X, Clock, Users, Trophy, AlertCircle } from 'lucide-react';
+import { Play, X, Clock, Users, Trophy, AlertCircle, Check, User } from 'lucide-react';
 import { useMatchmaking } from '../../hooks/useMatchmaking';
 import { useAuth } from '../../components/auth/AuthProvider';
-import MatchFound from './MatchFound';
+import { supabase } from '../../lib/supabase';
 
 interface QueueManagerProps {
   className?: string;
@@ -18,6 +18,8 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     matchFound,
     error,
     loading,
+    isUnderDeclinePenalty,
+    remainingPenaltyTime,
     joinQueue,
     leaveQueue,
     acceptMatch,
@@ -27,8 +29,6 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     maxWaitTime: 120, // 2 minutes
     ratingRange: 300, // ±300 rating points
   });
-
-  const [showMatchModal, setShowMatchModal] = useState(false);
 
   const formatWaitTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`;
@@ -48,23 +48,80 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
   const handleAcceptMatch = async () => {
     if (matchFound) {
       await acceptMatch(matchFound.id);
-      setShowMatchModal(false);
     }
   };
 
   const handleDeclineMatch = async () => {
-    if (matchFound) {
-      await declineMatch(matchFound.id);
-      setShowMatchModal(false);
+    if (matchFound && !loading) {
+      try {
+        await declineMatch(matchFound.id);
+      } catch (error) {
+        console.error('Error declining match:', error);
+        // Silently handle the error - the match was likely already declined
+        // The useMatchmaking hook will handle the state updates
+      }
     }
   };
 
-  // Show match found modal
-  React.useEffect(() => {
-    if (matchFound) {
-      setShowMatchModal(true);
+  // Get opponent info
+  const getOpponentInfo = () => {
+    if (!matchFound || !user) return null;
+    
+    const isPlayer1 = matchFound.player1_id === user.id;
+    const opponentId = isPlayer1 ? matchFound.player2_id : matchFound.player1_id;
+    
+    if (!opponentId) return null;
+    
+    // For now, we'll show the opponent ID, but ideally we'd fetch their profile
+    return {
+      id: opponentId,
+      username: `Player ${opponentId.slice(0, 8)}...`,
+      isPlayer1
+    };
+  };
+
+  const opponent = getOpponentInfo();
+
+  // Countdown timer for match acceptance
+  const [timeLeft, setTimeLeft] = useState(30); // 30 seconds to accept
+  const [isCountingDown, setIsCountingDown] = useState(false);
+
+  // Start countdown when match is found
+  useEffect(() => {
+    if (matchFound && !isCountingDown) {
+      setIsCountingDown(true);
+      setTimeLeft(30);
+    } else if (!matchFound) {
+      setIsCountingDown(false);
+      setTimeLeft(30);
     }
-  }, [matchFound]);
+  }, [matchFound, isCountingDown]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (!isCountingDown || timeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          // Auto decline when time runs out
+          if (matchFound) {
+            handleDeclineMatch();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCountingDown, timeLeft, matchFound]);
+
+  const formatTimeLeft = (seconds: number) => {
+    return `${seconds}s`;
+  };
+
+
 
   if (!user) {
     return (
@@ -88,16 +145,103 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
             Quick Play
           </h3>
           
-          {profile && (
-            <div className="text-sm text-gray-400">
-              Rating: {profile.rating}
-            </div>
-          )}
+          <div className="flex items-center space-x-2">
+            {profile && (
+              <div className="text-sm text-gray-400">
+                Rating: {profile.rating}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Queue Status */}
         <AnimatePresence mode="wait">
-          {!isInQueue && !matchFound ? (
+          {loading && !isInQueue && !matchFound ? (
+            <motion.div
+              key="restoring-queue"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-4"
+            >
+              <div className="text-center">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  className="w-16 h-16 text-blue-400 mx-auto mb-4"
+                >
+                  <Clock className="w-full h-full" />
+                </motion.div>
+                <h4 className="text-white font-medium mb-2">Restoring Queue</h4>
+                <p className="text-gray-400 text-sm mb-6">
+                  Checking if you were in a queue before...
+                </p>
+              </div>
+            </motion.div>
+          ) : matchFound ? (
+            <motion.div
+              key="match-found"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-4"
+            >
+              <div className="text-center">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="w-16 h-16 text-green-400 mx-auto mb-4"
+                >
+                  <Trophy className="w-full h-full" />
+                </motion.div>
+                <h4 className="text-white font-medium mb-2">Match Found!</h4>
+                <p className="text-gray-400 text-sm mb-4">
+                  A player is ready to challenge you!
+                </p>
+              </div>
+
+              {/* Countdown Timer */}
+              <div className="bg-gray-700/50 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-2 mb-2">
+                    <Clock className="w-5 h-5 text-orange-400" />
+                    <span className="text-white font-medium">Time to Accept</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${timeLeft <= 10 ? 'text-red-400' : 'text-green-400'}`}>
+                    {formatTimeLeft(timeLeft)}
+                  </div>
+                  <p className="text-gray-400 text-sm mt-2">
+                    Accept quickly or the match will be declined automatically
+                  </p>
+                </div>
+              </div>
+
+              {/* Accept/Decline Buttons */}
+              <div className="flex space-x-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleAcceptMatch}
+                  disabled={loading}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check className="w-5 h-5" />
+                  <span>Accept</span>
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleDeclineMatch}
+                  disabled={loading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <X className="w-5 h-5" />
+                  <span>Decline</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          ) : !isInQueue && !matchFound ? (
             <motion.div
               key="join-queue"
               initial={{ opacity: 0, y: 20 }}
@@ -117,7 +261,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleJoinQueue}
-                disabled={loading}
+                disabled={loading || isUnderDeclinePenalty}
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
@@ -130,7 +274,11 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 ) : (
                   <Play className="w-5 h-5" />
                 )}
-                <span>{loading ? 'Joining...' : 'Find Match'}</span>
+                <span>
+                  {loading ? 'Joining...' : 
+                   isUnderDeclinePenalty ? `Wait ${remainingPenaltyTime}s` : 
+                   'Find Match'}
+                </span>
               </motion.button>
             </motion.div>
           ) : isInQueue ? (
@@ -203,20 +351,26 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Match Found Modal */}
-      <AnimatePresence>
-        {showMatchModal && matchFound && (
-          <MatchFound
-            match={matchFound}
-            onAccept={handleAcceptMatch}
-            onDecline={handleDeclineMatch}
-            onClose={() => setShowMatchModal(false)}
-            loading={loading}
-          />
-        )}
-      </AnimatePresence>
+        {/* Decline Penalty Display */}
+        <AnimatePresence>
+          {isUnderDeclinePenalty && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="mt-4 p-3 bg-orange-900/50 border border-orange-700 rounded-lg"
+            >
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-orange-400" />
+                <span className="text-orange-400 text-sm">
+                  Decline penalty: {remainingPenaltyTime}s remaining
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </>
   );
 } 

@@ -21,11 +21,36 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Handle Cloudflare cookie errors gracefully
+              window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('__cf_bm')) {
+                  console.warn('Cloudflare bot management cookie error detected - this is usually harmless in development');
+                  e.preventDefault();
+                }
+              });
+              
+              // Override console.error for cookie-related errors
+              const originalError = console.error;
+              console.error = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('__cf_bm')) {
+                  console.warn('Cloudflare cookie warning:', ...args);
+                  return;
+                }
+                originalError.apply(console, args);
+              };
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

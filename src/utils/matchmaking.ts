@@ -49,7 +49,7 @@ const CHANNELS = {
 } as const;
 
 /**
- * Join the matchmaking queue using Presence
+ * Join the matchmaking queue
  */
 export async function joinMatchmakingQueue(userId: string, username: string, rating: number): Promise<boolean> {
   try {
@@ -63,7 +63,7 @@ export async function joinMatchmakingQueue(userId: string, username: string, rat
     }
     console.log('✅ User authenticated:', session.user.id);
     
-    // First, add to database queue
+    // Add to database queue (trigger will handle matchmaking)
     const { data: queueEntry, error: dbError } = await supabase
       .from('game_queue')
       .insert({
@@ -84,35 +84,7 @@ export async function joinMatchmakingQueue(userId: string, username: string, rat
     }
 
     console.log('✅ Added to database queue:', queueEntry);
-
-    // Join the presence channel
-    const channel = supabase.channel(CHANNELS.QUEUE);
-    
-    const presenceData: QueuePresence = {
-      user_id: userId,
-      username,
-      rating,
-      joined_at: Date.now(),
-    };
-
-    await channel
-      .on('presence', { event: 'sync' }, () => {
-        console.log('🔄 Queue presence synced');
-        processQueueForMatches();
-      })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('👤 Player joined queue:', newPresences);
-        processQueueForMatches();
-      })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('👋 Player left queue:', leftPresences);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track(presenceData);
-          console.log('✅ Joined queue presence channel');
-        }
-      });
+    console.log('🎯 Database trigger will automatically process matchmaking');
 
     return true;
   } catch (error) {

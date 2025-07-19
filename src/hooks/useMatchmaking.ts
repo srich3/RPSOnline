@@ -390,84 +390,102 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
     console.log('📡 Setting up matchmaking subscription');
 
-    matchmakingSubscription.current = subscribeToMatchmaking(
-      user.id,
-      // onMatchFound
-      (message) => {
-        console.log('🎯 Match found:', message);
-        
-        // Get the game details
-        supabase
-          .from('games')
-          .select('*')
-          .eq('id', message.game_id)
-          .single()
-          .then(({ data: game, error }) => {
-            if (error) {
-              console.error('Error fetching game:', error);
-              return;
-            }
+    // Listen for new games (matches) created for this user
+    const channel = supabase
+      .channel(`matchmaking:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🎯 New game created (match found):', payload);
+          const game = payload.new as Game;
+          
+          if (game.status === 'waiting') {
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: game,
+              isInQueue: false,
+            }));
             
-            if (game) {
-              setState(prev => ({ 
-                ...prev, 
-                matchFound: game,
-                isInQueue: false,
-              }));
-              
-              // Auto-accept if enabled
-              if (autoAcceptMatch) {
-                setTimeout(() => {
-                  acceptMatch(game.id);
-                }, 1000);
-              }
+            // Auto-accept if enabled
+            if (autoAcceptMatch) {
+              setTimeout(() => {
+                acceptMatch(game.id);
+              }, 1000);
             }
-          });
-      },
-      // onMatchAccepted
-      (message) => {
-        console.log('✅ Match accepted by opponent:', message);
-        
-        // Clear queue state from localStorage
-        clearQueueState();
-        
-        // Start the game
-        if (state.matchFound) {
-          startNewGame(
-            state.matchFound.player1_id,
-            state.matchFound.player2_id || ''
-          );
+          }
         }
-        
-        // Clear matchmaking state
-        setState(prev => ({ 
-          ...prev, 
-          isInQueue: false,
-          matchFound: null,
-          queuePosition: null,
-          estimatedWaitTime: null,
-        }));
-        
-        // Leave queue
-        leaveQueue();
-      },
-      // onMatchDeclined
-      (message) => {
-        console.log('❌ Match declined by opponent:', message);
-        
-        // Clear match state and rejoin queue
-        setState(prev => ({ 
-          ...prev, 
-          matchFound: null,
-        }));
-        
-        // Rejoin queue after a short delay
-        setTimeout(() => {
-          joinQueue();
-        }, 2000);
-      }
-    );
-  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, leaveQueue, joinQueue, clearQueueState]);
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔄 Game updated:', payload);
+          const game = payload.new as Game;
+          
+          if (game.status === 'active' && state.matchFound?.id === game.id) {
+            console.log('✅ Match accepted by opponent');
+            
+            // Clear queue state from localStorage
+            clearQueueState();
+            
+            // Start the game
+            startNewGame(
+              game.player1_id,
+              game.player2_id || ''
+            );
+            
+            // Clear matchmaking state
+            setState(prev => ({ 
+              ...prev, 
+              isInQueue: false,
+              matchFound: null,
+              queuePosition: null,
+              estimatedWaitTime: null,
+            }));
+            
+            // Leave queue
+            leaveQueue();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'games',
+          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('❌ Game deleted (match declined):', payload);
+          
+          // Clear match state and rejoin queue
+          setState(prev => ({ 
+            ...prev, 
+            matchFound: null,
+          }));
+          
+          // Rejoin queue after a short delay
+          setTimeout(() => {
+            joinQueue();
+          }, 2000);
+        }
+      )
+      .subscribe();
+
+    matchmakingSubscription.current = channel;
+  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, leaveQueue, joinQueue, clearQueueState, state.matchFound]);
 
   // Setup subscription and restore state on mount
   useEffect(() => {

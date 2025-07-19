@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { UsernamePrompt } from "../../components/user/UsernamePrompt";
 import ProfileCard from '../../components/user/ProfileCard';
 import StatsOverview from '../../components/user/StatsOverview';
+import QueueManager from '../../components/matchmaking/QueueManager';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -107,14 +108,15 @@ export default function Dashboard() {
             <ProfileCard />
           </div>
 
-          {/* Main Content: Quick Actions and Stats */}
+          {/* Main Content: Matchmaking and Stats */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Matchmaking */}
+            <QueueManager />
+            
+            {/* Quick Actions */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg border border-gray-700">
               <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg">
-                  Start New Game
-                </button>
                 <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200">
                   Join Tournament
                 </button>
@@ -124,8 +126,12 @@ export default function Dashboard() {
                 <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200">
                   Achievements
                 </button>
+                <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200">
+                  Game History
+                </button>
               </div>
             </div>
+            
             {/* Stats Overview */}
             <StatsOverview />
           </div>

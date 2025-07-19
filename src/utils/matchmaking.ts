@@ -329,7 +329,45 @@ export function startQueueCleanup(): void {
   }
   
   cleanupInterval = setInterval(async () => {
-    await cleanupStaleQueueEntries();
+    try {
+      // Clean up stale queue entries
+      const removedCount = await cleanupStaleQueueEntries();
+      if (removedCount > 0) {
+        console.log(`🧹 Cleaned up ${removedCount} stale queue entries`);
+      }
+      
+      // Clean up queue entries for players already in games
+      const { data: activePlayers, error: fetchError } = await supabase
+        .from('games')
+        .select('player1_id, player2_id')
+        .in('status', ['waiting', 'active']);
+      
+      if (fetchError) {
+        console.error('Error fetching active players:', fetchError);
+      } else if (activePlayers && activePlayers.length > 0) {
+        const players = new Set<string>();
+        activePlayers.forEach(game => {
+          if (game.player1_id) players.add(game.player1_id);
+          if (game.player2_id) players.add(game.player2_id);
+        });
+        
+        const playerIds = Array.from(players);
+        if (playerIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('game_queue')
+            .delete()
+            .in('user_id', playerIds);
+          
+          if (deleteError) {
+            console.error('Error cleaning up queue for active players:', deleteError);
+          } else {
+            console.log(`🧹 Cleaned up queue entries for ${playerIds.length} active players`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error during queue cleanup:', error);
+    }
   }, MATCHMAKING_CONFIG.CLEANUP_INTERVAL);
   
   console.log('🧹 Started queue cleanup interval');

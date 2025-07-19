@@ -406,10 +406,23 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           const game = payload.new as Game;
           
           if (game.status === 'waiting') {
+            console.log('🎮 Match found! Starting game...');
+            
+            // Clear queue state from localStorage
+            clearQueueState();
+            
+            // Stop wait time tracking
+            if (waitTimeRef.current) {
+              clearInterval(waitTimeRef.current);
+              waitTimeRef.current = null;
+            }
+            
             setState(prev => ({ 
               ...prev, 
               matchFound: game,
               isInQueue: false,
+              queuePosition: null,
+              estimatedWaitTime: null,
             }));
             
             // Auto-accept if enabled
@@ -436,9 +449,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           if (game.status === 'active' && state.matchFound?.id === game.id) {
             console.log('✅ Match accepted by opponent');
             
-            // Clear queue state from localStorage
-            clearQueueState();
-            
             // Start the game
             startNewGame(
               game.player1_id,
@@ -453,9 +463,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               queuePosition: null,
               estimatedWaitTime: null,
             }));
-            
-            // Leave queue
-            leaveQueue();
           }
         }
       )
@@ -482,10 +489,43 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           }, 2000);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'game_queue',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🚪 Removed from queue (likely match found):', payload);
+          
+          // If we're still showing as in queue, clear the state
+          if (state.isInQueue) {
+            console.log('🎯 Match found! Clearing queue state...');
+            
+            // Clear queue state from localStorage
+            clearQueueState();
+            
+            // Stop wait time tracking
+            if (waitTimeRef.current) {
+              clearInterval(waitTimeRef.current);
+              waitTimeRef.current = null;
+            }
+            
+            setState(prev => ({ 
+              ...prev, 
+              isInQueue: false,
+              queuePosition: null,
+              estimatedWaitTime: null,
+            }));
+          }
+        }
+      )
       .subscribe();
 
     matchmakingSubscription.current = channel;
-  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, leaveQueue, joinQueue, clearQueueState, state.matchFound]);
+  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, joinQueue, clearQueueState, state.matchFound, state.isInQueue]);
 
   // Setup subscription and restore state on mount
   useEffect(() => {

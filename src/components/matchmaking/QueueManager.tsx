@@ -119,6 +119,28 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 </p>
               </div>
             </motion.div>
+          ) : matchFound ? (
+            <motion.div
+              key="match-found"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-4"
+            >
+              <div className="text-center">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="w-16 h-16 text-green-400 mx-auto mb-4"
+                >
+                  <Trophy className="w-full h-full" />
+                </motion.div>
+                <h4 className="text-white font-medium mb-2">Match Found!</h4>
+                <p className="text-gray-400 text-sm mb-6">
+                  Preparing to start the game...
+                </p>
+              </div>
+            </motion.div>
           ) : !isInQueue && !matchFound ? (
             <motion.div
               key="join-queue"

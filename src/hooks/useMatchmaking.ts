@@ -469,7 +469,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const setupMatchmakingSubscription = useCallback(async () => {
     if (!user?.id) return;
 
-    console.log('📡 Setting up matchmaking subscription');
+    console.log('📡 Setting up matchmaking subscription for user:', user.id);
 
     // Check if user already has a recent game (in case they were matched before subscription)
     try {
@@ -491,15 +491,22 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           loading: false,
           error: null,
         }));
+        return; // Don't set up subscription if we already have a game
       }
     } catch (error) {
-      // No recent game found, continue with subscription
       console.log('📡 No recent games found, setting up subscription...');
     }
 
-    // Create a comprehensive subscription that handles all matchmaking events
+    // Clean up any existing subscription
+    if (matchmakingSubscription.current) {
+      console.log('🧹 Cleaning up existing subscription');
+      matchmakingSubscription.current.unsubscribe();
+      matchmakingSubscription.current = null;
+    }
+
+    // Create a simple, focused subscription
     const channel = supabase
-      .channel(`matchmaking:${user.id}`)
+      .channel(`matchmaking-${user.id}`)
       
       // Primary: Listen for new games (matches) created for this user
       .on(
@@ -550,129 +557,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
-      // Secondary: Listen for queue removal (backup notification)
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'game_queue',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('🚪 Removed from queue (likely match found):', payload);
-          
-          // Only handle if we're still showing as in queue
-          if (isInQueueRef.current) {
-            console.log('🎯 Queue removal detected, checking for new game...');
-            
-            // Check if we have a new game (race condition handling)
-            setTimeout(async () => {
-              try {
-                const { data: newGame, error } = await supabase
-                  .from('games')
-                  .select('*')
-                  .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
-                  .eq('status', 'waiting')
-                  .order('created_at', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-
-                if (newGame && !error && !matchFoundRef.current) {
-                  console.log('🎮 Found new game via queue removal check:', newGame);
-                  
-                  // Clear queue state from localStorage
-                  clearQueueState();
-                  
-                  // Stop wait time tracking
-                  if (waitTimeRef.current) {
-                    clearInterval(waitTimeRef.current);
-                    waitTimeRef.current = null;
-                  }
-                  
-                  setState(prev => ({ 
-                    ...prev, 
-                    matchFound: newGame,
-                    isInQueue: false,
-                    queuePosition: null,
-                    estimatedWaitTime: null,
-                    loading: false,
-                    error: null,
-                  }));
-                  
-                  // Update refs
-                  matchFoundRef.current = newGame;
-                  isInQueueRef.current = false;
-                  
-                  // Auto-accept if enabled
-                  if (autoAcceptMatch) {
-                    setTimeout(() => {
-                      acceptMatch(newGame.id);
-                    }, 1000);
-                  }
-                }
-              } catch (error) {
-                console.error('Error checking for new game after queue removal:', error);
-              }
-            }, 100); // Small delay to ensure game creation completes
-          }
-        }
-      )
-      .on(
-        'broadcast',
-        { event: 'match_found' },
-        (payload) => {
-          console.log('🎯 Received match_found broadcast:', payload);
-          const message = payload.payload;
-          
-          // Check if this match is for us
-          if (message.player1_id === user.id || message.player2_id === user.id) {
-            console.log('🎮 Match found for us via broadcast!');
-            
-            // Fetch the game details
-            supabase
-              .from('games')
-              .select('*')
-              .eq('id', message.game_id)
-              .single()
-              .then(({ data: game, error }) => {
-                if (game && !error) {
-                  console.log('🎮 Fetched game details:', game);
-                  
-                  // Clear queue state from localStorage
-                  clearQueueState();
-                  
-                  // Stop wait time tracking
-                  if (waitTimeRef.current) {
-                    clearInterval(waitTimeRef.current);
-                    waitTimeRef.current = null;
-                  }
-                  
-                  setState(prev => ({ 
-                    ...prev, 
-                    matchFound: game,
-                    isInQueue: false,
-                    queuePosition: null,
-                    estimatedWaitTime: null,
-                    loading: false,
-                    error: null,
-                  }));
-                  
-                  // Update refs
-                  matchFoundRef.current = game;
-                  isInQueueRef.current = false;
-                  
-                  // Auto-accept if enabled
-                  if (autoAcceptMatch) {
-                    setTimeout(() => {
-                      acceptMatch(game.id);
-                    }, 1000);
-                  }
-                }
-              });
-          }
-        }
-      )
+      // Listen for game updates (acceptance)
       .on(
         'postgres_changes',
         {
@@ -726,6 +611,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           }
         }
       )
+      
+      // Listen for game deletions (declines)
       .on(
         'postgres_changes',
         {
@@ -760,97 +647,19 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           }));
           
           // Rejoin queue after a short delay for the non-declining player
-          // The declining player won't be in the queue, so they won't rejoin
           setTimeout(() => {
             joinQueue();
           }, 3000);
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'game_queue',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('🚪 Removed from queue (likely match found):', payload);
-          
-          // If we're still showing as in queue, clear the state
-          if (isInQueueRef.current) {
-            console.log('🎯 Match found! Clearing queue state...');
-            
-            // Clear queue state from localStorage
-            clearQueueState();
-            
-            // Stop wait time tracking
-            if (waitTimeRef.current) {
-              clearInterval(waitTimeRef.current);
-              waitTimeRef.current = null;
-            }
-            
-            setState(prev => ({ 
-              ...prev, 
-              isInQueue: false,
-              queuePosition: null,
-              estimatedWaitTime: null,
-              loading: false,
-              error: null,
-            }));
-            
-            // Update ref
-            isInQueueRef.current = false;
-          }
-        }
-      )
-      .on(
-        'broadcast',
-        { event: 'match_declined' },
-        (payload) => {
-          console.log('❌ Received match declined notification:', payload);
-          const message = payload.payload as DeclineMessage;
-          
-          // Check if this decline is for our current match
-          if (matchFoundRef.current?.id === message.game_id) {
-            console.log('❌ Our match was declined by the other player');
-            console.log('Declined by:', message.declined_by, 'Our ID:', user?.id);
-            
-            // Clear match state and queue state
-            clearQueueState();
-            setState(prev => ({ 
-              ...prev, 
-              matchFound: null,
-              isInQueue: false,
-              queuePosition: null,
-              estimatedWaitTime: null,
-              loading: false,
-              error: 'The other player declined the match. Rejoining queue...',
-            }));
-            
-            // Update refs
-            matchFoundRef.current = null;
-            isInQueueRef.current = false;
-            
-            // Only rejoin queue if we're not the one who declined
-            if (message.declined_by !== user?.id) {
-              console.log('🔄 Rejoining queue as non-declining player');
-              setTimeout(() => {
-                joinQueue();
-              }, 3000);
-            } else {
-              console.log('🚫 Not rejoining queue as declining player');
-            }
-          }
-        }
-      )
+      
       .subscribe((status) => {
         console.log('📡 Matchmaking subscription status:', status);
         
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Matchmaking subscription error');
+          console.error('❌ Matchmaking subscription error - will retry in 5s');
           // Retry subscription after a delay
           setTimeout(() => {
             if (user?.id) {
@@ -859,7 +668,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             }
           }, 5000);
         } else if (status === 'TIMED_OUT') {
-          console.warn('⏰ Matchmaking subscription timed out, retrying...');
+          console.warn('⏰ Matchmaking subscription timed out - will retry in 2s');
           // Retry subscription after a delay
           setTimeout(() => {
             if (user?.id) {

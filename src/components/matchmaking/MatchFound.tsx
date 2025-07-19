@@ -102,6 +102,28 @@ export default function MatchFound({
                   {profile?.rating ? `${profile.rating} ± 200` : 'Calculating...'}
                 </span>
               </div>
+
+              {/* Acceptance Status */}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Status:</span>
+                <span className="text-white font-medium">
+                  {match.player1_accepted && match.player2_accepted ? (
+                    <span className="text-green-400">Both Accepted</span>
+                  ) : isPlayer1 ? (
+                    match.player1_accepted ? (
+                      <span className="text-yellow-400">Waiting for Opponent</span>
+                    ) : (
+                      <span className="text-blue-400">Ready to Accept</span>
+                    )
+                  ) : (
+                    match.player2_accepted ? (
+                      <span className="text-yellow-400">Waiting for Opponent</span>
+                    ) : (
+                      <span className="text-blue-400">Ready to Accept</span>
+                    )
+                  )}
+                </span>
+              </div>
             </div>
 
             {/* Action Buttons */}
@@ -110,7 +132,7 @@ export default function MatchFound({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleAccept}
-                disabled={loading || isAccepting || isDeclining}
+                disabled={loading || isAccepting || isDeclining || (isPlayer1 ? match.player1_accepted : match.player2_accepted)}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isAccepting ? (
@@ -123,7 +145,10 @@ export default function MatchFound({
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
-                <span>{isAccepting ? 'Accepting...' : 'Accept'}</span>
+                <span>
+                  {isAccepting ? 'Accepting...' : 
+                   (isPlayer1 ? match.player1_accepted : match.player2_accepted) ? 'Accepted' : 'Accept'}
+                </span>
               </motion.button>
 
               <motion.button

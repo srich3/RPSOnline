@@ -394,31 +394,15 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       const success = await acceptMatchUtil(gameId, user.id);
 
       if (success) {
-        console.log('✅ Match accepted');
+        console.log('✅ Match acceptance recorded, waiting for other player...');
         
-        // Clear queue state from localStorage
-        clearQueueState();
-        
-        // Start the game in the store
-        if (state.matchFound) {
-          startNewGame(
-            state.matchFound.player1_id,
-            state.matchFound.player2_id || ''
-          );
-        }
-
-        // Clear matchmaking state
+        // Don't start the game yet - wait for database notification
+        // Just show that we've accepted
         setState(prev => ({ 
           ...prev, 
-          isInQueue: false,
-          matchFound: null,
           loading: false,
-          queuePosition: null,
-          estimatedWaitTime: null,
+          error: null,
         }));
-
-        // Leave queue
-        await leaveQueue();
       } else {
         throw new Error('Failed to accept match');
       }
@@ -431,7 +415,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to accept match'
       }));
     }
-  }, [user?.id, state.matchFound, startNewGame, leaveQueue, clearQueueState]);
+  }, [user?.id]);
 
   // Decline match
   const declineMatch = useCallback(async (gameId: string) => {
@@ -565,8 +549,15 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           console.log('🔄 Game updated:', payload);
           const game = payload.new as Game;
           
-          if (game.status === 'active' && matchFoundRef.current?.id === game.id) {
-            console.log('✅ Match accepted by opponent');
+          // Check if this is our current match and both players have accepted
+          if (matchFoundRef.current?.id === game.id && 
+              game.status === 'active' && 
+              game.player1_accepted && 
+              game.player2_accepted) {
+            console.log('✅ Both players accepted, starting game!');
+            
+            // Clear queue state from localStorage
+            clearQueueState();
             
             // Start the game
             startNewGame(
@@ -581,11 +572,21 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               matchFound: null,
               queuePosition: null,
               estimatedWaitTime: null,
+              loading: false,
+              error: null,
             }));
             
             // Update refs
             matchFoundRef.current = null;
             isInQueueRef.current = false;
+          } else if (matchFoundRef.current?.id === game.id) {
+            // Update the match found state with latest acceptance info
+            console.log('🔄 Match acceptance updated:', game);
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: game,
+            }));
+            matchFoundRef.current = game;
           }
         }
       )

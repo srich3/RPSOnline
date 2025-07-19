@@ -191,39 +191,27 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
 
     console.log('Game found:', game);
     
-    // Update game status
-    const { data: updatedGame, error: gameError } = await supabase
+    // Update the appropriate acceptance field
+    const isPlayer1 = game.player1_id === userId;
+    const updateData = isPlayer1 
+      ? { player1_accepted: true, updated_at: new Date().toISOString() }
+      : { player2_accepted: true, updated_at: new Date().toISOString() };
+
+    const { data: updatedGame, error: updateError } = await supabase
       .from('games')
-      .update({ 
-        status: 'active',
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', gameId)
       .select()
       .single();
 
-    if (gameError) {
-      console.error('Error updating game:', gameError);
+    if (updateError) {
+      console.error('Error updating game acceptance:', updateError);
       return false;
     }
 
-    console.log('Game updated successfully:', updatedGame);
+    console.log('Game acceptance updated:', updatedGame);
 
-    // Send acceptance notification
-    const channel = supabase.channel(CHANNELS.MATCHMAKING);
-    await channel.send({
-      type: 'broadcast',
-      event: 'match_accepted',
-      payload: {
-        type: 'match_accepted',
-        game_id: gameId,
-        player1_id: userId,
-        player2_id: '', // Will be filled by the other player
-        timestamp: Date.now(),
-      },
-    });
-
-    console.log('✅ Match accepted successfully');
+    console.log('✅ Match acceptance recorded successfully');
     return true;
   } catch (error) {
     console.error('Error accepting match:', error);

@@ -13,6 +13,10 @@ ALTER TABLE public.game_queue ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own queue entries" ON public.game_queue
     FOR SELECT USING (auth.uid() = user_id);
 
+-- Matchmaking system can view all queue entries for processing
+CREATE POLICY "Matchmaking can view all queue entries" ON public.game_queue
+    FOR SELECT USING (true);
+
 -- Users can insert their own queue entries
 CREATE POLICY "Users can insert own queue entries" ON public.game_queue
     FOR INSERT WITH CHECK (auth.uid() = user_id);

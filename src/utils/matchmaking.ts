@@ -55,17 +55,35 @@ export async function joinMatchmakingQueue(userId: string, username: string, rat
   try {
     console.log(`🎯 Joining matchmaking queue: ${username} (${rating})`);
     
+    // Test authentication first
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    if (authError || !session) {
+      console.error('❌ Authentication error:', authError);
+      return false;
+    }
+    console.log('✅ User authenticated:', session.user.id);
+    
     // First, add to database queue
-    const { error: dbError } = await supabase
+    const { data: queueEntry, error: dbError } = await supabase
       .from('game_queue')
       .insert({
         user_id: userId,
-      });
+      })
+      .select()
+      .single();
 
     if (dbError) {
       console.error('Error adding to database queue:', dbError);
+      console.error('Error details:', {
+        code: dbError.code,
+        message: dbError.message,
+        details: dbError.details,
+        hint: dbError.hint
+      });
       return false;
     }
+
+    console.log('✅ Added to database queue:', queueEntry);
 
     // Join the presence channel
     const channel = supabase.channel(CHANNELS.QUEUE);
@@ -145,7 +163,7 @@ async function processQueueForMatches(): Promise<void> {
       .select(`
         user_id,
         created_at,
-        users!inner (
+        users (
           id,
           username,
           rating

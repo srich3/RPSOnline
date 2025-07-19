@@ -497,9 +497,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       console.log('📡 No recent games found, setting up subscription...');
     }
 
-    // Listen for new games (matches) created for this user
+    // Create a comprehensive subscription that handles all matchmaking events
     const channel = supabase
       .channel(`matchmaking:${user.id}`)
+      
+      // Primary: Listen for new games (matches) created for this user
       .on(
         'postgres_changes',
         {
@@ -544,6 +546,75 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
                 acceptMatch(game.id);
               }, 1000);
             }
+          }
+        }
+      )
+      
+      // Secondary: Listen for queue removal (backup notification)
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'game_queue',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🚪 Removed from queue (likely match found):', payload);
+          
+          // Only handle if we're still showing as in queue
+          if (isInQueueRef.current) {
+            console.log('🎯 Queue removal detected, checking for new game...');
+            
+            // Check if we have a new game (race condition handling)
+            setTimeout(async () => {
+              try {
+                const { data: newGame, error } = await supabase
+                  .from('games')
+                  .select('*')
+                  .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+                  .eq('status', 'waiting')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (newGame && !error && !matchFoundRef.current) {
+                  console.log('🎮 Found new game via queue removal check:', newGame);
+                  
+                  // Clear queue state from localStorage
+                  clearQueueState();
+                  
+                  // Stop wait time tracking
+                  if (waitTimeRef.current) {
+                    clearInterval(waitTimeRef.current);
+                    waitTimeRef.current = null;
+                  }
+                  
+                  setState(prev => ({ 
+                    ...prev, 
+                    matchFound: newGame,
+                    isInQueue: false,
+                    queuePosition: null,
+                    estimatedWaitTime: null,
+                    loading: false,
+                    error: null,
+                  }));
+                  
+                  // Update refs
+                  matchFoundRef.current = newGame;
+                  isInQueueRef.current = false;
+                  
+                  // Auto-accept if enabled
+                  if (autoAcceptMatch) {
+                    setTimeout(() => {
+                      acceptMatch(newGame.id);
+                    }, 1000);
+                  }
+                }
+              } catch (error) {
+                console.error('Error checking for new game after queue removal:', error);
+              }
+            }, 100); // Small delay to ensure game creation completes
           }
         }
       )
@@ -773,7 +844,31 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Matchmaking subscription status:', status);
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Matchmaking subscription active');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Matchmaking subscription error');
+          // Retry subscription after a delay
+          setTimeout(() => {
+            if (user?.id) {
+              console.log('🔄 Retrying matchmaking subscription...');
+              setupMatchmakingSubscription();
+            }
+          }, 5000);
+        } else if (status === 'TIMED_OUT') {
+          console.warn('⏰ Matchmaking subscription timed out, retrying...');
+          // Retry subscription after a delay
+          setTimeout(() => {
+            if (user?.id) {
+              console.log('🔄 Retrying matchmaking subscription...');
+              setupMatchmakingSubscription();
+            }
+          }, 2000);
+        }
+      });
 
     matchmakingSubscription.current = channel;
   }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, joinQueue, clearQueueState]);

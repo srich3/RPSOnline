@@ -524,14 +524,14 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           event: 'INSERT',
           schema: 'public',
           table: 'games',
-          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🎯 New game created (match found):', payload);
+          console.log('🎯 New game created:', payload);
           const game = payload.new as Game;
           
-          if (game.status === 'waiting') {
-            console.log('🎮 Match found! Starting game...');
+          // Check if this game is for us
+          if ((game.player1_id === user.id || game.player2_id === user.id) && game.status === 'waiting') {
+            console.log('🎮 Match found for us! Starting game...');
             
             // Clear queue state from localStorage
             clearQueueState();
@@ -573,50 +573,52 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           event: 'UPDATE',
           schema: 'public',
           table: 'games',
-          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
         },
         (payload) => {
           console.log('🔄 Game updated:', payload);
           const game = payload.new as Game;
           
-          // Check if this is our current match and both players have accepted
-          if (matchFoundRef.current?.id === game.id && 
-              game.status === 'active' && 
-              game.player1_accepted && 
-              game.player2_accepted) {
-            console.log('✅ Both players accepted, starting game!');
-            
-            // Clear queue state from localStorage
-            clearQueueState();
-            
-            // Start the game
-            startNewGame(
-              game.player1_id,
-              game.player2_id || ''
-            );
-            
-            // Clear matchmaking state
-            setState(prev => ({ 
-              ...prev, 
-              isInQueue: false,
-              matchFound: null,
-              queuePosition: null,
-              estimatedWaitTime: null,
-              loading: false,
-              error: null,
-            }));
-            
-            // Update refs
-            matchFoundRef.current = null;
-            isInQueueRef.current = false;
-          } else if (matchFoundRef.current?.id === game.id) {
-            // Update the match found state with latest acceptance info
-            console.log('🔄 Match acceptance updated:', game);
-            setState(prev => ({ 
-              ...prev, 
-              matchFound: game,
-            }));
-            matchFoundRef.current = game;
+          // Check if this game is for us
+          if (game.player1_id === user.id || game.player2_id === user.id) {
+            // Check if this is our current match and both players have accepted
+            if (matchFoundRef.current?.id === game.id && 
+                game.status === 'active' && 
+                game.player1_accepted && 
+                game.player2_accepted) {
+              console.log('✅ Both players accepted, starting game!');
+              
+              // Clear queue state from localStorage
+              clearQueueState();
+              
+              // Start the game
+              startNewGame(
+                game.player1_id,
+                game.player2_id || ''
+              );
+              
+              // Clear matchmaking state
+              setState(prev => ({ 
+                ...prev, 
+                isInQueue: false,
+                matchFound: null,
+                queuePosition: null,
+                estimatedWaitTime: null,
+                loading: false,
+                error: null,
+              }));
+              
+              // Update refs
+              matchFoundRef.current = null;
+              isInQueueRef.current = false;
+            } else if (matchFoundRef.current?.id === game.id) {
+              // Update the match found state with latest acceptance info
+              console.log('🔄 Match acceptance updated:', game);
+              setState(prev => ({ 
+                ...prev, 
+                matchFound: game,
+              }));
+              matchFoundRef.current = game;
+            }
           }
         }
       )
@@ -628,37 +630,42 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           event: 'DELETE',
           schema: 'public',
           table: 'games',
-          filter: `player1_id=eq.${user.id} OR player2_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('❌ Game deleted (match declined):', payload);
+          console.log('❌ Game deleted:', payload);
+          const game = payload.old as Game;
           
-          // Clear match state and queue state
-          clearQueueState();
-          setState(prev => ({ 
-            ...prev, 
-            matchFound: null,
-            isInQueue: false,
-            queuePosition: null,
-            estimatedWaitTime: null,
-            loading: false,
-            error: null,
-          }));
-          
-          // Update refs
-          matchFoundRef.current = null;
-          isInQueueRef.current = false;
-          
-          // Show notification that other player declined
-          setState(prev => ({ 
-            ...prev, 
-            error: 'The other player declined the match. Rejoining queue...',
-          }));
-          
-          // Rejoin queue after a short delay for the non-declining player
-          setTimeout(() => {
-            joinQueue();
-          }, 3000);
+          // Check if this game was for us
+          if (game.player1_id === user.id || game.player2_id === user.id) {
+            console.log('❌ Our game was deleted (match declined)');
+            
+            // Clear match state and queue state
+            clearQueueState();
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: null,
+              isInQueue: false,
+              queuePosition: null,
+              estimatedWaitTime: null,
+              loading: false,
+              error: null,
+            }));
+            
+            // Update refs
+            matchFoundRef.current = null;
+            isInQueueRef.current = false;
+            
+            // Show notification that other player declined
+            setState(prev => ({ 
+              ...prev, 
+              error: 'The other player declined the match. Rejoining queue...',
+            }));
+            
+            // Rejoin queue after a short delay for the non-declining player
+            setTimeout(() => {
+              joinQueue();
+            }, 3000);
+          }
         }
       )
       

@@ -134,7 +134,40 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         .eq('user_id', user.id)
         .single();
 
-      if (error || !queueEntry) {
+      if (error) {
+        // If it's a 406 error, it might mean the user was matched and removed
+        // Check if there's a recent game for this user instead
+        if (error.code === '406' || error.code === 'PGRST116') {
+          console.log('🔍 User not in queue, checking for recent games...');
+          
+          const { data: recentGame, error: gameError } = await supabase
+            .from('games')
+            .select('*')
+            .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+            .eq('status', 'waiting')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (recentGame && !gameError) {
+            console.log('🎯 Found recent game, user was matched!');
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: recentGame,
+              isInQueue: false,
+              loading: false,
+            }));
+            return;
+          }
+        }
+        
+        console.log('⚠️ User not found in database queue, clearing localStorage');
+        clearQueueState();
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      if (!queueEntry) {
         console.log('⚠️ User not found in database queue, clearing localStorage');
         clearQueueState();
         setState(prev => ({ ...prev, loading: false }));
@@ -385,10 +418,34 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   }, [user?.id, joinQueue]);
 
   // Setup matchmaking subscription
-  const setupMatchmakingSubscription = useCallback(() => {
+  const setupMatchmakingSubscription = useCallback(async () => {
     if (!user?.id) return;
 
     console.log('📡 Setting up matchmaking subscription');
+
+    // Check if user already has a recent game (in case they were matched before subscription)
+    try {
+      const { data: recentGame, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (recentGame && !gameError) {
+        console.log('🎯 Found existing game, user was already matched!');
+        setState(prev => ({ 
+          ...prev, 
+          matchFound: recentGame,
+          isInQueue: false,
+        }));
+      }
+    } catch (error) {
+      // No recent game found, continue with subscription
+      console.log('📡 No recent games found, setting up subscription...');
+    }
 
     // Listen for new games (matches) created for this user
     const channel = supabase
@@ -531,11 +588,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   useEffect(() => {
     if (!user?.id) return;
 
-    // Restore queue state first
-    restoreQueueState().then(() => {
-      // Then setup subscription
-      setupMatchmakingSubscription();
-    });
+    // Restore queue state first, then setup subscription
+    const initializeMatchmaking = async () => {
+      await restoreQueueState();
+      await setupMatchmakingSubscription();
+    };
+
+    initializeMatchmaking();
     
     // Start queue cleanup
     startQueueCleanup();

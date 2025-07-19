@@ -148,16 +148,16 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
             .eq('status', 'waiting')
             .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+            .limit(1);
 
-          if (recentGame && !gameError) {
+          if (recentGame && recentGame.length > 0 && !gameError) {
             console.log('🎯 Found recent game, user was matched!');
             setState(prev => ({ 
               ...prev, 
-              matchFound: recentGame,
+              matchFound: recentGame[0],
               isInQueue: false,
               loading: false,
+              error: null,
             }));
             return;
           }
@@ -179,13 +179,14 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       // Restore the queue state
       const waitTime = Math.floor((Date.now() - savedState.joinedAt) / 1000);
       
-      setState(prev => ({
-        ...prev,
-        isInQueue: true,
-        queuePosition: 1,
-        estimatedWaitTime: waitTime,
-        loading: false,
-      }));
+              setState(prev => ({
+          ...prev,
+          isInQueue: true,
+          queuePosition: 1,
+          estimatedWaitTime: waitTime,
+          loading: false,
+          error: null,
+        }));
 
       console.log('✅ Queue state restored successfully');
 
@@ -230,6 +231,57 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         throw new Error('No active session');
       }
       console.log('✅ User authenticated, session valid');
+
+      // First, check if user already has an existing game
+      const { data: existingGames, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
+        .in('status', ['waiting', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (gameError) {
+        console.error('Error checking existing games:', gameError);
+      } else if (existingGames && existingGames.length > 0) {
+        const existingGame = existingGames[0];
+        console.log('🎮 Found existing game:', existingGame);
+        
+        if (existingGame.status === 'waiting') {
+          // Show match found modal for existing waiting game
+          console.log('🎯 Showing existing match for acceptance');
+          setState(prev => ({ 
+            ...prev, 
+            matchFound: existingGame,
+            isInQueue: false,
+            loading: false,
+            queuePosition: null,
+            estimatedWaitTime: null,
+            error: null,
+          }));
+          return;
+        } else if (existingGame.status === 'active') {
+          // Game is already active, start it immediately
+          console.log('🎮 Starting existing active game');
+          startNewGame(
+            existingGame.player1_id,
+            existingGame.player2_id || ''
+          );
+          setState(prev => ({ 
+            ...prev, 
+            loading: false,
+            isInQueue: false,
+            matchFound: null,
+            queuePosition: null,
+            estimatedWaitTime: null,
+            error: null,
+          }));
+          return;
+        }
+      }
+
+      // No existing game found, proceed with joining queue
+      console.log('📋 No existing game found, joining queue...');
 
       // Join the matchmaking queue using the new real-time approach
       const success = await joinMatchmakingQueue(
@@ -285,7 +337,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to join queue'
       }));
     }
-  }, [user?.id, profile, state.isInQueue, maxWaitTime, saveQueueState]);
+  }, [user?.id, profile, state.isInQueue, maxWaitTime, saveQueueState, startNewGame]);
 
   // Leave matchmaking queue
   const leaveQueue = useCallback(async () => {
@@ -434,7 +486,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         .eq('status', 'waiting')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (recentGame && !gameError) {
         console.log('🎯 Found existing game, user was already matched!');
@@ -442,6 +494,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           ...prev, 
           matchFound: recentGame,
           isInQueue: false,
+          loading: false,
+          error: null,
         }));
       }
     } catch (error) {
@@ -482,6 +536,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               isInQueue: false,
               queuePosition: null,
               estimatedWaitTime: null,
+              loading: false,
+              error: null,
             }));
             
             // Update refs
@@ -585,6 +641,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               isInQueue: false,
               queuePosition: null,
               estimatedWaitTime: null,
+              loading: false,
+              error: null,
             }));
             
             // Update ref

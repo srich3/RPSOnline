@@ -76,18 +76,37 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const joinQueue = useCallback(async () => {
     if (!user?.id || state.isInQueue) return;
 
-    console.log('🎯 Joining matchmaking queue');
+    console.log('🎯 Joining matchmaking queue for user:', user.id);
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      // Check if already in queue
-      const { data: existingQueue } = await supabase
+      // Check authentication status
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+      console.log('✅ User authenticated, session valid');
+      // Check if already in queue - simplified approach
+      console.log('🔍 Checking if user is already in queue...');
+      const { data: existingQueue, error: checkError } = await supabase
         .from('game_queue')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .select('id, user_id, created_at')
+        .eq('user_id', user.id);
 
-      if (existingQueue) {
+      if (checkError) {
+        console.error('Error checking queue status:', checkError);
+        console.error('Check error details:', {
+          code: checkError.code,
+          message: checkError.message,
+          details: checkError.details,
+          hint: checkError.hint
+        });
+        throw checkError;
+      }
+
+      console.log('Queue check result:', existingQueue);
+
+      if (existingQueue && existingQueue.length > 0) {
         console.log('⚠️ Already in queue');
         setState(prev => ({ 
           ...prev, 
@@ -137,6 +156,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
     } catch (error) {
       console.error('❌ Error joining queue:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        name: error instanceof Error ? error.name : 'Unknown',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       setState(prev => ({ 
         ...prev, 
         loading: false,

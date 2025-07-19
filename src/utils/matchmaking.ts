@@ -325,43 +325,24 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
 
     console.log('Game found:', game);
     
-    // Get the other player's ID
-    const otherPlayerId = game.player1_id === userId ? game.player2_id : game.player1_id;
-    
-    // Check if game still exists before trying to delete
-    const { data: existingGame, error: checkError } = await supabase
-      .from('games')
-      .select('id')
-      .eq('id', gameId)
-      .maybeSingle();
+    // Use the new cancel_game function instead of deleting
+    const { data: result, error: cancelError } = await supabase
+      .rpc('cancel_game', {
+        game_id: gameId,
+        player_id: userId
+      });
 
-    if (checkError) {
-      console.error('Error checking if game exists:', checkError);
+    if (cancelError) {
+      console.error('Error canceling game:', cancelError);
       return false;
     }
 
-    // If game doesn't exist, it was already declined/deleted
-    if (!existingGame) {
-      console.log('Game already deleted/declined:', gameId);
-      return true; // Return true since the goal was achieved
-    }
-
-    // Delete the game
-    const { data: deletedGame, error: gameError } = await supabase
-      .from('games')
-      .delete()
-      .eq('id', gameId)
-      .select();
-
-    if (gameError) {
-      console.error('Error deleting game:', gameError);
-      console.error('Game ID:', gameId);
-      console.error('User ID:', userId);
-      console.error('Game data:', game);
+    if (!result) {
+      console.error('Failed to cancel game');
       return false;
     }
 
-    console.log('Game deleted successfully:', deletedGame);
+    console.log('Game canceled successfully');
 
     // Remove the declining player from the queue
     const { error: queueError } = await supabase
@@ -376,23 +357,9 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
       console.log('Player removed from queue after declining');
     }
 
-    // Add the other player back to the queue using database function
-    if (otherPlayerId) {
-      const { data: result, error: queueError } = await supabase
-        .rpc('add_player_to_queue', {
-          player_id: otherPlayerId
-        });
-
-      if (queueError) {
-        console.error('Error adding other player back to queue:', queueError);
-      } else {
-        console.log('✅ Added other player back to queue:', otherPlayerId, 'Result:', result);
-      }
-
-      // Note: The client will detect the game deletion via postgres_changes DELETE event
-      // and handle the decline notification automatically
-      console.log('📡 Game deleted, client will detect via DELETE event');
-    }
+    // Note: The other player will need to manually rejoin the queue
+    // This gives them control over when they want to play again
+    console.log('📡 Game canceled, other player can manually rejoin when ready');
 
     console.log('❌ Match declined successfully');
     return true;
@@ -540,4 +507,214 @@ export function stopQueueCleanup(): void {
     cleanupInterval = null;
     console.log('🧹 Stopped queue cleanup interval');
   }
+} 
+
+/**
+ * Forfeit a game (give up during active gameplay)
+ */
+export async function forfeitGame(gameId: string, userId: string): Promise<boolean> {
+  try {
+    console.log(`🏳️ Forfeiting game: ${gameId} by user: ${userId}`);
+    
+    const { data: result, error } = await supabase
+      .rpc('forfeit_game', {
+        game_id: gameId,
+        player_id: userId
+      });
+
+    if (error) {
+      console.error('Error forfeiting game:', error);
+      return false;
+    }
+
+    if (!result) {
+      console.error('Failed to forfeit game');
+      return false;
+    }
+
+    console.log('✅ Game forfeited successfully');
+    return true;
+  } catch (error) {
+    console.error('Error forfeiting game:', error);
+    return false;
+  }
+}
+
+/**
+ * Get achievement statistics for a player (from users table)
+ */
+export async function getPlayerAchievementStats(userId: string): Promise<{
+  total_games_played: number;
+  games_won: number;
+  games_lost: number;
+  games_forfeited: number;
+  games_canceled: number;
+  opponents_forfeited: number;
+  opponents_canceled: number;
+} | null> {
+  try {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select(`
+        total_games_played,
+        games_won,
+        games_lost,
+        games_forfeited,
+        games_canceled,
+        opponents_forfeited,
+        opponents_canceled
+      `)
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error getting user achievement stats:', error);
+      return null;
+    }
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      total_games_played: user.total_games_played || 0,
+      games_won: user.games_won || 0,
+      games_lost: user.games_lost || 0,
+      games_forfeited: user.games_forfeited || 0,
+      games_canceled: user.games_canceled || 0,
+      opponents_forfeited: user.opponents_forfeited || 0,
+      opponents_canceled: user.opponents_canceled || 0
+    };
+  } catch (error) {
+    console.error('Error in getPlayerAchievementStats:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user's earned achievements
+ */
+export async function getUserAchievements(userId: string): Promise<{
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  reward_type: string | null;
+  reward_value: string | null;
+  earned_at: string;
+}[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_achievements')
+      .select(`
+        achievement_id,
+        earned_at,
+        achievements (
+          id,
+          name,
+          description,
+          icon,
+          category,
+          reward_type,
+          reward_value
+        )
+      `)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error getting user achievements:', error);
+      return [];
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    return data.map(item => ({
+      id: item.achievements.id,
+      name: item.achievements.name,
+      description: item.achievements.description,
+      icon: item.achievements.icon,
+      category: item.achievements.category,
+      reward_type: item.achievements.reward_type,
+      reward_value: item.achievements.reward_value,
+      earned_at: item.earned_at
+    }));
+  } catch (error) {
+    console.error('Error in getUserAchievements:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all available achievements
+ */
+export async function getAllAchievements(): Promise<{
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  requirement_type: string;
+  requirement_value: number;
+  reward_type: string | null;
+  reward_value: string | null;
+}[]> {
+  try {
+    const { data, error } = await supabase
+      .from('achievements')
+      .select('*')
+      .order('requirement_value', { ascending: true });
+
+    if (error) {
+      console.error('Error getting all achievements:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllAchievements:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if a player has earned specific achievements
+ */
+export async function checkPlayerAchievements(userId: string): Promise<{
+  intimidatingPresence: boolean; // Cause 100 players to cancel
+  overwhelming: boolean; // Cause 100 players to forfeit
+  quickRetreat: boolean; // Forfeit over 100 matches
+  veteran: boolean; // Play 1000 games
+  champion: boolean; // Win 500 games
+  unstoppable: boolean; // Win 1000 games
+  sportsman: boolean; // Never forfeit (min 50 games)
+}> {
+  const stats = await getPlayerAchievementStats(userId);
+  const userAchievements = await getUserAchievements(userId);
+  
+  if (!stats) {
+    return {
+      intimidatingPresence: false,
+      overwhelming: false,
+      quickRetreat: false,
+      veteran: false,
+      champion: false,
+      unstoppable: false,
+      sportsman: false
+    };
+  }
+
+  const earnedAchievementNames = userAchievements.map(a => a.name);
+
+  return {
+    intimidatingPresence: earnedAchievementNames.includes('Intimidating Presence'),
+    overwhelming: earnedAchievementNames.includes('Overwhelming'),
+    quickRetreat: earnedAchievementNames.includes('Quick Retreat'),
+    veteran: earnedAchievementNames.includes('Veteran Player'),
+    champion: earnedAchievementNames.includes('Champion'),
+    unstoppable: earnedAchievementNames.includes('Unstoppable'),
+    sportsman: earnedAchievementNames.includes('Sportsman')
+  };
 } 

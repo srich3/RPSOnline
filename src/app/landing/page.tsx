@@ -1,7 +1,7 @@
 "use client";
 import { useAuth } from "../../hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { UsernamePrompt } from "../../components/user/UsernamePrompt";
 
 export default function LandingPage() {
@@ -10,18 +10,39 @@ export default function LandingPage() {
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
   const [timeoutReached, setTimeoutReached] = useState(false);
 
+  // Memoized redirect functions to prevent unnecessary re-renders
+  const redirectToHome = useCallback(() => {
+    console.log('Landing page - No user, redirecting to /');
+    router.replace("/");
+  }, [router]);
+
+  const redirectToTutorial = useCallback(() => {
+    console.log('Landing page - Tutorial not complete, redirecting to /tutorial');
+    router.replace("/tutorial");
+  }, [router]);
+
+  const redirectToDashboard = useCallback(() => {
+    console.log('Landing page - Tutorial complete, redirecting to /dashboard');
+    router.replace("/dashboard");
+  }, [router]);
+
+  const forceRedirectToTutorial = useCallback(() => {
+    console.log('Landing page - Timeout reached, forcing redirect to tutorial');
+    router.push('/tutorial');
+  }, [router]);
+
   // Add a timeout to prevent getting stuck
   useEffect(() => {
     if (user && !profile && !loading) {
       const timer = setTimeout(() => {
         console.log('Landing page - Timeout reached, forcing redirect to tutorial');
         setTimeoutReached(true);
-        router.push('/tutorial');
+        forceRedirectToTutorial();
       }, 5000); // 5 second timeout
       
       return () => clearTimeout(timer);
     }
-  }, [user, profile, loading, router]);
+  }, [user, profile, loading, forceRedirectToTutorial]);
 
   useEffect(() => {
     console.log('Landing page - User:', user?.id);
@@ -34,8 +55,7 @@ export default function LandingPage() {
     }
     
     if (!user) {
-      console.log('Landing page - No user, redirecting to /');
-      router.replace("/");
+      redirectToHome();
       return;
     }
 
@@ -52,13 +72,11 @@ export default function LandingPage() {
 
       // Normal flow for users with proper usernames
       if (profile.tutorial_complete === false) {
-        console.log('Landing page - Tutorial not complete, redirecting to /tutorial');
-        router.replace("/tutorial");
+        redirectToTutorial();
         return;
       }
       if (profile.tutorial_complete === true) {
-        console.log('Landing page - Tutorial complete, redirecting to /dashboard');
-        router.replace("/dashboard");
+        redirectToDashboard();
         return;
       }
     } else {
@@ -66,11 +84,11 @@ export default function LandingPage() {
       // If we've been waiting too long and have a user, redirect to tutorial as fallback
       if (timeoutReached) {
         console.log('Landing page - Timeout reached, redirecting to tutorial');
-        router.push('/tutorial');
+        forceRedirectToTutorial();
         return;
       }
     }
-  }, [user, profile, loading, router, timeoutReached]);
+  }, [user, profile, loading, timeoutReached, redirectToHome, redirectToTutorial, redirectToDashboard, forceRedirectToTutorial]);
 
   // Show username prompt for OAuth users with temporary usernames
   if (showUsernamePrompt) {

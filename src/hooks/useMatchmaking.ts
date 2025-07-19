@@ -9,8 +9,6 @@ import {
   subscribeToMatchmaking,
   acceptMatch as acceptMatchUtil,
   declineMatch as declineMatchUtil,
-  startQueueCleanup,
-  stopQueueCleanup,
   type DeclineMessage
 } from '../utils/matchmaking';
 
@@ -568,7 +566,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     
     const channel = supabase
       .channel('matchmaking', {
-        config: { private: true }, // Required for realtime.broadcast_changes()
+        config: { 
+          private: true, // Required for realtime.broadcast_changes()
+        },
       })
       
       // Test: Listen to system events
@@ -874,36 +874,25 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       )
       
       .subscribe((status) => {
-        console.log('📡 Matchmaking subscription status:', status);
-        console.log('📡 Subscription details:', {
-          status,
-          timestamp: new Date().toISOString(),
-          userId: user?.id,
-          channelName: 'matchmaking'
-        });
-        
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
-          console.log('🎯 Channel is ready to receive broadcasts!');
           subscriptionSetupRef.current = false; // Reset flag on success
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Matchmaking subscription error - keeping subscription open');
+          console.warn('⚠️ Matchmaking subscription error - will retry automatically');
           subscriptionSetupRef.current = false; // Reset flag on error
           // Don't retry - keep the subscription open
         } else if (status === 'TIMED_OUT') {
-          console.warn('⏰ Matchmaking subscription timed out - keeping subscription open');
+          console.warn('⏰ Matchmaking subscription timed out - will retry automatically');
           subscriptionSetupRef.current = false; // Reset flag on timeout
           // Don't retry - keep the subscription open
         } else if (status === 'CLOSED') {
           console.warn('🔒 Matchmaking subscription closed');
           subscriptionSetupRef.current = false;
-        } else {
-          console.log('📡 Other subscription status:', status);
         }
       });
 
     matchmakingSubscription.current = channel;
-  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, joinQueue, clearQueueState]);
+  }, [user?.id]); // Removed function dependencies to prevent unnecessary recreation
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -955,8 +944,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
     initializeMatchmaking();
     
-    // Start queue cleanup
-    startQueueCleanup();
+    // Note: Queue cleanup is handled by database triggers, so we don't need to start/stop it here
 
     return () => {
       // Only cleanup subscription if no match is found
@@ -971,10 +959,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         clearInterval(waitTimeRef.current);
       }
       
-      // Stop queue cleanup
-      stopQueueCleanup();
+      // Note: Queue cleanup is handled by database triggers
     };
-  }, [user?.id, restoreQueueState, setupMatchmakingSubscription]);
+  }, [user?.id]); // Removed restoreQueueState and setupMatchmakingSubscription from dependencies
 
   // Cleanup function
   const cleanup = useCallback(() => {

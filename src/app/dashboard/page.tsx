@@ -1,47 +1,63 @@
 "use client";
 import { useAuth } from "../../hooks/useAuth";
-import { useUserStore } from "../../store/userStore";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { UsernamePrompt } from "../../components/user/UsernamePrompt";
 import ProfileCard from '../../components/user/ProfileCard';
 import StatsOverview from '../../components/user/StatsOverview';
 import QueueManager from '../../components/matchmaking/QueueManager';
-import { supabase } from "../../lib/supabase";
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const { profile, loading, fetchProfile } = useUserStore();
+  const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
+  const routerRef = useRef(router);
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const authProcessed = useRef(false);
+
+  // Update router ref when router changes
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  // Memoized redirect functions to prevent unnecessary re-renders
+  const redirectToHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
+
+  const redirectToLanding = useCallback(() => {
+    router.push("/landing");
+  }, [router]);
 
   useEffect(() => {
-    console.log('Dashboard - User:', user?.id);
-    console.log('Dashboard - Profile:', profile);
+    // Skip if we've already processed this exact state
+    if (authProcessed.current) {
+      return;
+    }
+    
+    // Wait for loading to complete
+    if (loading) {
+      return;
+    }
     
     // Redirect to login if no user
     if (!user) {
-      console.log('Dashboard - No user, redirecting to /');
-      router.push("/");
+      redirectToHome();
       return;
     }
     
     // Redirect to landing if user has temporary username (OAuth users)
     if (profile && profile.username && profile.username.startsWith('user_')) {
-      console.log('Dashboard - Temporary username detected, redirecting to /landing');
-      router.push("/landing");
+      redirectToLanding();
       return;
     }
     
     // If no profile yet, wait a bit
     if (!profile) {
-      console.log('Dashboard - No profile yet, waiting...');
       return;
     }
     
-    console.log('Dashboard - User authorized for dashboard access');
-  }, [user, profile, router]);
-
+    authProcessed.current = true;
+  }, [user, profile, loading, redirectToHome, redirectToLanding]);
 
   const handleLogout = async () => {
     try {
@@ -57,13 +73,8 @@ export default function Dashboard() {
 
   const handleProfileComplete = () => {
     setShowProfilePrompt(false);
-    // Refresh the profile
-    if (user) {
-      fetchProfile(user.id);
-    }
+    // The AuthProvider will handle profile updates
   };
-
-
 
   if (!user) {
     return (
@@ -73,15 +84,22 @@ export default function Dashboard() {
     );
   }
 
+  // Show loading state while profile is being loaded
+  if (loading || !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900">
+        <div className="text-white">Loading dashboard...</div>
+      </div>
+    );
+  }
+
   // Show username prompt if user has temporary username
-  if (profile && profile.username && profile.username.startsWith('user_')) {
+  if (profile.username && profile.username.startsWith('user_')) {
     return <UsernamePrompt />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-
-
       {/* Header */}
       <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -91,7 +109,6 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center space-x-4">
-
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -133,8 +150,6 @@ export default function Dashboard() {
                   Game History
                 </button>
               </div>
-              
-
             </div>
             
             {/* Stats Overview */}

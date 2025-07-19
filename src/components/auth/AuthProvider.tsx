@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { User, AuthError, AuthResponse, OAuthResponse } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../types/database';
@@ -36,15 +36,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Track if we've already processed a user to prevent duplicate calls
+  const processedUsers = useRef<Set<string>>(new Set());
+  const hasInitialized = useRef<boolean>(false);
+  const initializationPromise = useRef<Promise<void> | null>(null);
+  
   // Get store clear functions
   const clearUserData = useUserStore(state => state.clearUserData);
   const clearGameData = useGameStore(state => state.clearGameData);
 
-  // Fetch user profile when user changes
-  const fetchUserProfile = async (userId: string) => {
+  // Memoized fetch user profile function
+  const fetchUserProfile = useCallback(async (userId: string) => {
     try {
-      console.log('🔍 Fetching user profile for:', userId);
-      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -61,32 +64,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         setProfile(null);
       } else {
-        console.log('✅ User profile fetched successfully:', data);
         setProfile(data);
       }
     } catch (error) {
       console.error('❌ Exception in fetchUserProfile:', error);
       setProfile(null);
     }
-  };
+  }, []);
 
   // Refresh profile function for external use
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchUserProfile(user.id);
     }
-  };
+  }, [user, fetchUserProfile]);
 
-  // Helper to ensure a users row exists for every auth user
-  const ensureUserProfile = async (user: User) => {
+  // Memoized helper to ensure a users row exists for every auth user
+  const ensureUserProfile = useCallback(async (user: User) => {
     if (!user || !user.id) {
-      console.log('No valid user provided to ensureUserProfile');
+      return;
+    }
+
+    // Check if we've already processed this user in this session
+    if (processedUsers.current.has(user.id)) {
+      return;
+    }
+
+    // Check if we've already initialized for this user
+    if (hasInitialized.current) {
       return;
     }
 
     try {
-      console.log('🔍 Checking if profile exists for user:', user.id);
-      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -106,14 +115,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (!data) {
         // No profile exists, create one with default values
-        console.log('📝 Creating default user profile for:', user.id);
-        
-        // Generate a simple unique username using timestamp and user ID
         const timestamp = Date.now();
         const userIdSuffix = user.id.slice(0, 8);
         const finalUsername = `user_${userIdSuffix}_${timestamp}`;
-        
-        console.log('🔤 Generated temporary username for OAuth user:', finalUsername);
         
         const { error: insertError } = await supabase.from('users').insert({
           id: user.id,
@@ -128,7 +132,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (insertError) {
           // If insert fails due to duplicate key, profile already exists
           if (insertError.code === '23505') {
-            console.log('✅ Profile already exists for user:', user.id);
           } else {
             console.error('❌ Error creating default profile:', insertError);
             console.error('❌ Insert error details:', {
@@ -139,47 +142,83 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             });
           }
         } else {
-          console.log('✅ Successfully created profile with username:', finalUsername);
         }
-      } else {
-        console.log('✅ Profile already exists for user:', user.id);
       }
+      
+      // Mark this user as processed
+      processedUsers.current.add(user.id);
     } catch (err) {
       console.error('❌ Exception in ensureUserProfile:', err);
     }
-  };
+  }, []);
+
+  // Memoized function to handle user initialization
+  const initializeUser = useCallback(async (sessionUser: User, event?: string) => {
+    if (!sessionUser || !sessionUser.id) return;
+
+    // If we're already initializing, wait for that to complete
+    if (initializationPromise.current) {
+      await initializationPromise.current;
+      return;
+    }
+
+    // If already initialized, skip
+    if (hasInitialized.current) {
+      return;
+    }
+
+    // Create a new initialization promise
+    initializationPromise.current = (async () => {
+      try {
+        // For OAuth signups, we need to ensure they go through the landing page
+        if (event === 'SIGNED_IN' && sessionUser.app_metadata?.provider) {
+          console.log('OAuth user signed in, ensuring they go through landing page');
+          // Force redirect to landing page for OAuth users
+          if (typeof window !== 'undefined' && window.location.pathname !== '/landing') {
+            window.location.href = '/landing';
+            return;
+          }
+        }
+        
+        // Ensure profile exists for all users
+        await ensureUserProfile(sessionUser);
+        await fetchUserProfile(sessionUser.id);
+        
+        hasInitialized.current = true;
+      } catch (error) {
+        console.error('❌ Error during initialization:', error);
+        throw error;
+      } finally {
+        // Clear the promise reference
+        initializationPromise.current = null;
+      }
+    })();
+
+    // Wait for the initialization to complete
+    await initializationPromise.current;
+  }, [ensureUserProfile, fetchUserProfile]);
 
   useEffect(() => {
     let isMounted = true;
     
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!isMounted) return;
-      
-      console.log('Auth state changed:', _event, session?.user?.id);
-      setUser(session?.user ?? null);
+          const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (!isMounted) return;
+        
+        console.log('Auth state changed:', event, session?.user?.id);
+        setUser(session?.user ?? null);
       
       if (session?.user) {
         try {
-          // For OAuth signups, we need to ensure they go through the landing page
-          if (_event === 'SIGNED_IN' && session.user.app_metadata?.provider) {
-            console.log('OAuth user signed in, ensuring they go through landing page');
-            // Force redirect to landing page for OAuth users
-            if (typeof window !== 'undefined' && window.location.pathname !== '/landing') {
-              window.location.href = '/landing';
-              return;
-            }
-          }
-          
-          // Ensure profile exists for all users
-          await ensureUserProfile(session.user);
-          if (isMounted) {
-            await fetchUserProfile(session.user.id);
-          }
+          await initializeUser(session.user, event);
         } catch (error) {
           console.error('Error in auth state change handler:', error);
         }
       } else {
         setProfile(null);
+        // Clear processed users when user signs out
+        processedUsers.current.clear();
+        hasInitialized.current = false;
+        initializationPromise.current = null;
       }
       
       if (isMounted) {
@@ -188,18 +227,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted) return;
-      
-      console.log('Initial session check:', session?.user?.id);
-      setUser(session?.user ?? null);
+          supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!isMounted) {
+          return;
+        }
+        
+        console.log('Initial session check:', session?.user?.id);
+        setUser(session?.user ?? null);
       
       if (session?.user) {
         try {
-          await ensureUserProfile(session.user);
-          if (isMounted) {
-            await fetchUserProfile(session.user.id);
-          }
+          await initializeUser(session.user);
         } catch (error) {
           console.error('Error in initial session handler:', error);
         }
@@ -213,8 +251,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
       listener.subscription.unsubscribe();
+      // Clean up processed users on unmount
+      processedUsers.current.clear();
+      hasInitialized.current = false;
+      initializationPromise.current = null;
     };
-  }, []);
+  }, [initializeUser]);
 
   const signIn = (email: string, password: string) => 
     supabase.auth.signInWithPassword({ email, password });

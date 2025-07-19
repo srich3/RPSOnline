@@ -291,19 +291,17 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
       console.log('Player removed from queue after declining');
     }
 
-    // Add the other player back to the queue
+    // Add the other player back to the queue using database function
     if (otherPlayerId) {
-      // The game_queue table only needs user_id, username and rating are fetched from users table
-      const { error: queueError } = await supabase
-        .from('game_queue')
-        .insert({
-          user_id: otherPlayerId,
+      const { data: result, error: queueError } = await supabase
+        .rpc('add_player_to_queue', {
+          player_id: otherPlayerId
         });
 
       if (queueError) {
         console.error('Error adding other player back to queue:', queueError);
       } else {
-        console.log('✅ Added other player back to queue:', otherPlayerId);
+        console.log('✅ Added other player back to queue:', otherPlayerId, 'Result:', result);
       }
 
       // Note: The client will detect the game deletion via postgres_changes DELETE event

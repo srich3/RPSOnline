@@ -203,7 +203,12 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_player_to_queue: {
+        Args: {
+          player_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

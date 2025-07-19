@@ -62,6 +62,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
   const waitTimeRef = useRef<NodeJS.Timeout | null>(null);
   const matchmakingSubscription = useRef<any>(null);
+  const matchFoundRef = useRef<Game | null>(null);
+  const isInQueueRef = useRef<boolean>(false);
 
   // Save queue state to localStorage
   const saveQueueState = useCallback((queueState: QueueStorageState) => {
@@ -482,6 +484,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               estimatedWaitTime: null,
             }));
             
+            // Update refs
+            matchFoundRef.current = game;
+            isInQueueRef.current = false;
+            
             // Auto-accept if enabled
             if (autoAcceptMatch) {
               setTimeout(() => {
@@ -503,7 +509,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           console.log('🔄 Game updated:', payload);
           const game = payload.new as Game;
           
-          if (game.status === 'active' && state.matchFound?.id === game.id) {
+          if (game.status === 'active' && matchFoundRef.current?.id === game.id) {
             console.log('✅ Match accepted by opponent');
             
             // Start the game
@@ -520,6 +526,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               queuePosition: null,
               estimatedWaitTime: null,
             }));
+            
+            // Update refs
+            matchFoundRef.current = null;
+            isInQueueRef.current = false;
           }
         }
       )
@@ -558,7 +568,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           console.log('🚪 Removed from queue (likely match found):', payload);
           
           // If we're still showing as in queue, clear the state
-          if (state.isInQueue) {
+          if (isInQueueRef.current) {
             console.log('🎯 Match found! Clearing queue state...');
             
             // Clear queue state from localStorage
@@ -576,13 +586,25 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               queuePosition: null,
               estimatedWaitTime: null,
             }));
+            
+            // Update ref
+            isInQueueRef.current = false;
           }
         }
       )
       .subscribe();
 
     matchmakingSubscription.current = channel;
-  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, joinQueue, clearQueueState, state.matchFound, state.isInQueue]);
+  }, [user?.id, autoAcceptMatch, acceptMatch, startNewGame, joinQueue, clearQueueState]);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    matchFoundRef.current = state.matchFound;
+  }, [state.matchFound]);
+
+  useEffect(() => {
+    isInQueueRef.current = state.isInQueue;
+  }, [state.isInQueue]);
 
   // Setup subscription and restore state on mount
   useEffect(() => {

@@ -90,7 +90,7 @@ describe('Matchmaking Utilities', () => {
         player1_id: 'player1',
         player2_id: 'player2',
         status: 'waiting',
-        current_player: 'player1',
+
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

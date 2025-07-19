@@ -64,7 +64,7 @@ describe('useGameState', () => {
         turn_start_time: new Date().toISOString(),
       },
       turn_number: 1,
-      current_player: 'user-123',
+      
       created_at: new Date().toISOString(),
     },
     boardState: {

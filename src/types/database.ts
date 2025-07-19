@@ -145,13 +145,7 @@ export interface Database {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "games_current_player_fkey"
-            columns: ["current_player"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
+
         ]
       }
       game_moves: {
@@ -373,7 +367,6 @@ export interface GameState {
   winner_id?: string | null;
   game_state: any; // JSONB, can be refined later
   turn_number: number;
-  current_player: string;
   created_at: string;
 }
 

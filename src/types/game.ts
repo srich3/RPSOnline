@@ -10,7 +10,6 @@ export interface GameState {
   winner_id?: string;
   game_state: GameBoardState;
   turn_number: number;
-  current_player: string;
   created_at: string;
 }
 

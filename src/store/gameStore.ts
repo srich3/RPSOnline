@@ -88,7 +88,6 @@ export const useGameStore = create<GameStore>()(
           status: 'active',
           game_state: initialBoard,
           turn_number: 1,
-          current_player: player1Id,
           created_at: new Date().toISOString(),
         };
 
@@ -224,24 +223,11 @@ export const useGameStore = create<GameStore>()(
         const { currentGame, boardState } = get();
         if (!currentGame || !boardState) return;
 
-        const nextPlayer = currentGame.current_player === currentGame.player1_id
-          ? currentGame.player2_id
-          : currentGame.player1_id;
-
-        const nextTurn: PlayerTurn = {
-          player_id: nextPlayer,
-          phase: 'planning',
-          time_remaining: GAME_CONSTANTS.TURN_TIME_LIMIT,
-          actions: [],
-        };
-
+        // Since both players play simultaneously, we don't need to track current_player
+        // Just increment the turn number
         set((state) => ({
-          currentTurn: nextTurn,
-          timeRemaining: GAME_CONSTANTS.TURN_TIME_LIMIT,
-          isMyTurn: nextPlayer === currentGame.player1_id, // This should be based on current user
           currentGame: state.currentGame ? {
             ...state.currentGame,
-            current_player: nextPlayer,
             turn_number: (state.currentGame.turn_number || 1) + 1,
           } : null,
         }));
@@ -353,22 +339,9 @@ export const useGameStore = create<GameStore>()(
 
         // Reset for next turn
         const nextTurnNumber = (currentGame.turn_number || 1) + 1;
-        const nextPlayer = currentGame.current_player === currentGame.player1_id
-          ? currentGame.player2_id
-          : currentGame.player1_id;
-        const newTurn: PlayerTurn = {
-          player_id: nextPlayer,
-          phase: 'planning',
-          time_remaining: GAME_CONSTANTS.TURN_TIME_LIMIT,
-          actions: [],
-        };
         set((state) => ({
-          currentTurn: newTurn,
-          timeRemaining: GAME_CONSTANTS.TURN_TIME_LIMIT,
-          isMyTurn: nextPlayer === currentGame.player1_id, // Should be based on current user
           currentGame: state.currentGame ? {
             ...state.currentGame,
-            current_player: nextPlayer,
             turn_number: nextTurnNumber,
           } : null,
           boardState: {

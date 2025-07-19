@@ -327,8 +327,7 @@ export const findMatch = async (userId: string) => {
     // Join existing game
     const { data: updatedGame, error: updateError } = await updateGame(availableGame.id, {
       player2_id: userId,
-      status: 'active',
-      current_player: availableGame.player1_id
+      status: 'active'
     });
     
     if (updateError) return { data: null, error: updateError };

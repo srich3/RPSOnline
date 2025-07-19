@@ -491,6 +491,66 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
   }, [state.matchFound, autoAcceptMatch, acceptMatch]);
 
+  // Immediate matchmaking after joining queue
+  useEffect(() => {
+    if (state.isInQueue && !state.matchFound && !state.loading) {
+      const timer = setTimeout(async () => {
+        console.log('🔍 Checking for immediate match after joining queue');
+        const opponentId = await findOpponent();
+        if (opponentId) {
+          const game = await createGame(opponentId);
+          if (game) {
+            console.log('🎮 Immediate match found! Game created:', game);
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: game,
+              isInQueue: false,
+            }));
+            
+            // Auto-accept if enabled
+            if (autoAcceptMatch) {
+              setTimeout(() => {
+                acceptMatch(game.id);
+              }, 1000);
+            }
+          }
+        }
+      }, 2000); // Wait 2 seconds to ensure queue entry is processed
+
+      return () => clearTimeout(timer);
+    }
+  }, [state.isInQueue, state.matchFound, state.loading, findOpponent, createGame, autoAcceptMatch, acceptMatch]);
+
+  // Periodic matchmaking check for players already in queue
+  useEffect(() => {
+    if (state.isInQueue && !state.matchFound && !state.loading) {
+      const interval = setInterval(async () => {
+        console.log('🔍 Periodic matchmaking check');
+        const opponentId = await findOpponent();
+        if (opponentId) {
+          const game = await createGame(opponentId);
+          if (game) {
+            console.log('🎮 Periodic match found! Game created:', game);
+            setState(prev => ({ 
+              ...prev, 
+              matchFound: game,
+              isInQueue: false,
+            }));
+            
+            // Auto-accept if enabled
+            if (autoAcceptMatch) {
+              setTimeout(() => {
+                acceptMatch(game.id);
+              }, 1000);
+            }
+          }
+        }
+      }, 5000); // Check every 5 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [state.isInQueue, state.matchFound, state.loading, findOpponent, createGame, autoAcceptMatch, acceptMatch]);
+
   return {
     // State
     isInQueue: state.isInQueue,

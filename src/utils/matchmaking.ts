@@ -21,7 +21,7 @@ const MATCHMAKING_CONFIG = {
   MAX_RATING_DIFFERENCE: 300, // Maximum rating difference for initial matching
   EXPANDING_RATING_RANGE: 50, // How much to expand the range each iteration
   MAX_EXPANSION_ITERATIONS: 6, // Maximum number of rating range expansions
-  MIN_QUEUE_TIME: 10, // Minimum seconds in queue before expanding range
+  MIN_QUEUE_TIME: 0, // Minimum seconds in queue before expanding range (changed from 10 to 0)
   MAX_QUEUE_TIME: 120, // Maximum seconds in queue before forcing match
   CLEANUP_INTERVAL: 30000, // Cleanup every 30 seconds
   STALE_QUEUE_THRESHOLD: 300, // Remove queue entries older than 5 minutes
@@ -67,7 +67,7 @@ export async function findMatch(playerId: string, playerRating: number): Promise
       queue_time: Math.floor((Date.now() - new Date(entry.created_at).getTime()) / 1000),
     }));
 
-    console.log(`Found ${candidates.length} potential opponents`);
+    console.log(`Found ${candidates.length} potential opponents:`, candidates.map(c => `${c.username} (${c.rating}, ${c.queue_time}s)`));
 
     // Try to find a match with expanding rating range
     for (let iteration = 0; iteration < MATCHMAKING_CONFIG.MAX_EXPANSION_ITERATIONS; iteration++) {
@@ -77,6 +77,8 @@ export async function findMatch(playerId: string, playerRating: number): Promise
       const minRating = playerRating - ratingRange;
       const maxRating = playerRating + ratingRange;
 
+      console.log(`Iteration ${iteration + 1}: Checking rating range ±${ratingRange} (${minRating}-${maxRating})`);
+
       // Filter candidates by rating range
       const eligibleCandidates = candidates.filter(candidate => {
         const ratingDiff = Math.abs(candidate.rating - playerRating);
@@ -84,8 +86,12 @@ export async function findMatch(playerId: string, playerRating: number): Promise
         const meetsTimeCriteria = candidate.queue_time >= 
           (iteration * MATCHMAKING_CONFIG.MIN_QUEUE_TIME);
         
+        console.log(`  Candidate ${candidate.username}: rating diff=${ratingDiff}, time=${candidate.queue_time}s, meetsRating=${meetsRatingCriteria}, meetsTime=${meetsTimeCriteria}`);
+        
         return meetsRatingCriteria && meetsTimeCriteria;
       });
+
+      console.log(`  Eligible candidates: ${eligibleCandidates.length}`);
 
       if (eligibleCandidates.length > 0) {
         // Find the best match (closest rating and longest wait time)

@@ -167,19 +167,47 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
   try {
     console.log(`✅ Accepting match: ${gameId} by user: ${userId}`);
     
+    // First, verify the game exists and user is a participant
+    const { data: game, error: fetchError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching game:', fetchError);
+      return false;
+    }
+
+    if (!game) {
+      console.error('Game not found:', gameId);
+      return false;
+    }
+
+    if (game.player1_id !== userId && game.player2_id !== userId) {
+      console.error('User is not a participant in this game:', userId, gameId);
+      return false;
+    }
+
+    console.log('Game found:', game);
+    
     // Update game status
-    const { error: gameError } = await supabase
+    const { data: updatedGame, error: gameError } = await supabase
       .from('games')
       .update({ 
         status: 'active',
         updated_at: new Date().toISOString()
       })
-      .eq('id', gameId);
+      .eq('id', gameId)
+      .select()
+      .single();
 
     if (gameError) {
       console.error('Error updating game:', gameError);
       return false;
     }
+
+    console.log('Game updated successfully:', updatedGame);
 
     // Send acceptance notification
     const channel = supabase.channel(CHANNELS.MATCHMAKING);
@@ -195,6 +223,7 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
       },
     });
 
+    console.log('✅ Match accepted successfully');
     return true;
   } catch (error) {
     console.error('Error accepting match:', error);
@@ -209,6 +238,30 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
   try {
     console.log(`❌ Declining match: ${gameId} by user: ${userId}`);
     
+    // First, verify the game exists and user is a participant
+    const { data: game, error: fetchError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching game:', fetchError);
+      return false;
+    }
+
+    if (!game) {
+      console.error('Game not found:', gameId);
+      return false;
+    }
+
+    if (game.player1_id !== userId && game.player2_id !== userId) {
+      console.error('User is not a participant in this game:', userId, gameId);
+      return false;
+    }
+
+    console.log('Game found:', game);
+    
     // Delete the game
     const { error: gameError } = await supabase
       .from('games')
@@ -219,6 +272,8 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
       console.error('Error deleting game:', gameError);
       return false;
     }
+
+    console.log('Game deleted successfully');
 
     // Send decline notification
     const channel = supabase.channel(CHANNELS.MATCHMAKING);
@@ -234,6 +289,7 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
       },
     });
 
+    console.log('❌ Match declined successfully');
     return true;
   } catch (error) {
     console.error('Error declining match:', error);

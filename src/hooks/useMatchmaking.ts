@@ -517,27 +517,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     const channel = supabase
       .channel(`matchmaking-${user.id}`)
       
-      // Test: Listen to ALL events on ANY table (most basic test)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-        },
-        (payload) => {
-          console.log('🔍 ANY table event:', payload.eventType, payload.table, payload);
-        }
-      )
-      
-      // Test: Listen to broadcast events
-      .on(
-        'broadcast',
-        { event: 'test' },
-        (payload) => {
-          console.log('🔍 Broadcast test event:', payload);
-        }
-      )
-      
       // Test: Listen to presence events
       .on(
         'presence',
@@ -547,17 +526,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
-      // Primary: Listen for new games (matches) created for this user
+      // Primary: Listen for broadcast events from database
       .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'games',
-        },
+        'broadcast',
+        { event: 'INSERT' },
         (payload) => {
-          console.log('🎯 New game created:', payload);
-          const game = payload.new as Game;
+          console.log('🎯 Broadcast INSERT event:', payload);
+          const game = payload.payload.new as Game;
           console.log('🎯 Game details:', { 
             id: game.id, 
             player1_id: game.player1_id, 
@@ -568,7 +543,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           
           // Check if this game is for us
           if ((game.player1_id === user.id || game.player2_id === user.id) && game.status === 'waiting') {
-            console.log('🎮 Match found for us! Starting game...');
+            console.log('🎮 Match found for us via broadcast! Starting game...');
             
             // Clear queue state from localStorage
             clearQueueState();
@@ -605,17 +580,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
-      // Listen for game updates (acceptance)
+      // Listen for game updates (acceptance) via broadcast
       .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'games',
-        },
+        'broadcast',
+        { event: 'UPDATE' },
         (payload) => {
-          console.log('🔄 Game updated:', payload);
-          const game = payload.new as Game;
+          console.log('🔄 Broadcast UPDATE event:', payload);
+          const game = payload.payload.new as Game;
           
           // Check if this game is for us
           if (game.player1_id === user.id || game.player2_id === user.id) {
@@ -662,17 +633,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
-      // Listen for game deletions (declines)
+      // Listen for game deletions (declines) via broadcast
       .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'games',
-        },
+        'broadcast',
+        { event: 'DELETE' },
         (payload) => {
-          console.log('❌ Game deleted:', payload);
-          const game = payload.old as Game;
+          console.log('❌ Broadcast DELETE event:', payload);
+          const game = payload.payload.old as Game;
           
           // Check if this game was for us
           if (game.player1_id === user.id || game.player2_id === user.id) {
@@ -714,16 +681,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
           subscriptionSetupRef.current = false; // Reset flag on success
-          
-          // Test: Send a broadcast event to verify subscription is working
-          setTimeout(() => {
-            console.log('🧪 Testing broadcast event...');
-            supabase.channel(`matchmaking-${user.id}`).send({
-              type: 'broadcast',
-              event: 'test',
-              payload: { message: 'Test broadcast from subscription setup' }
-            });
-          }, 1000);
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Matchmaking subscription error - will retry in 5s');
           subscriptionSetupRef.current = false; // Reset flag on error

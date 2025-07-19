@@ -517,6 +517,19 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     const channel = supabase
       .channel(`matchmaking-${user.id}`)
       
+      // Debug: Listen to ALL events on games table
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+        },
+        (payload) => {
+          console.log('🔍 ALL games event:', payload.eventType, payload);
+        }
+      )
+      
       // Primary: Listen for new games (matches) created for this user
       .on(
         'postgres_changes',
@@ -528,6 +541,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         (payload) => {
           console.log('🎯 New game created:', payload);
           const game = payload.new as Game;
+          console.log('🎯 Game details:', { 
+            id: game.id, 
+            player1_id: game.player1_id, 
+            player2_id: game.player2_id, 
+            status: game.status,
+            our_id: user.id 
+          });
           
           // Check if this game is for us
           if ((game.player1_id === user.id || game.player2_id === user.id) && game.status === 'waiting') {
@@ -562,6 +582,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
                 acceptMatch(game.id);
               }, 1000);
             }
+          } else {
+            console.log('🎯 Game not for us or not waiting status');
           }
         }
       )

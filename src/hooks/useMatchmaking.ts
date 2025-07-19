@@ -530,6 +530,27 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
+      // Test: Listen to ALL events on ANY table
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+        },
+        (payload) => {
+          console.log('🔍 ANY table event:', payload.eventType, payload.table, payload);
+        }
+      )
+      
+      // Test: Listen to broadcast events
+      .on(
+        'broadcast',
+        { event: 'test' },
+        (payload) => {
+          console.log('🔍 Broadcast test event:', payload);
+        }
+      )
+      
       // Primary: Listen for new games (matches) created for this user
       .on(
         'postgres_changes',

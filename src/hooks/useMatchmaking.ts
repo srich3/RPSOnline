@@ -795,6 +795,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           // Check if this decline is for our current match
           if (matchFoundRef.current?.id === message.game_id) {
             console.log('❌ Our match was declined by the other player');
+            console.log('Declined by:', message.declined_by, 'Our ID:', user?.id);
             
             // Clear match state and queue state
             clearQueueState();

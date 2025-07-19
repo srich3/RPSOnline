@@ -65,6 +65,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const matchmakingSubscription = useRef<any>(null);
   const matchFoundRef = useRef<Game | null>(null);
   const isInQueueRef = useRef<boolean>(false);
+  const subscriptionSetupRef = useRef<boolean>(false);
 
   // Save queue state to localStorage
   const saveQueueState = useCallback((queueState: QueueStorageState) => {
@@ -135,7 +136,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         .from('game_queue')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         // If it's a 406 error, it might mean the user was matched and removed
@@ -469,6 +470,13 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const setupMatchmakingSubscription = useCallback(async () => {
     if (!user?.id) return;
 
+    // Prevent duplicate subscription setup
+    if (subscriptionSetupRef.current) {
+      console.log('📡 Subscription already being set up, skipping...');
+      return;
+    }
+
+    subscriptionSetupRef.current = true;
     console.log('📡 Setting up matchmaking subscription for user:', user.id);
 
     // Check if user already has a recent game (in case they were matched before subscription)
@@ -491,6 +499,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           loading: false,
           error: null,
         }));
+        subscriptionSetupRef.current = false; // Reset flag
         return; // Don't set up subscription if we already have a game
       }
     } catch (error) {
@@ -658,8 +667,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
+          subscriptionSetupRef.current = false; // Reset flag on success
         } else if (status === 'CHANNEL_ERROR') {
           console.error('❌ Matchmaking subscription error - will retry in 5s');
+          subscriptionSetupRef.current = false; // Reset flag on error
           // Retry subscription after a delay
           setTimeout(() => {
             if (user?.id) {
@@ -669,6 +680,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           }, 5000);
         } else if (status === 'TIMED_OUT') {
           console.warn('⏰ Matchmaking subscription timed out - will retry in 2s');
+          subscriptionSetupRef.current = false; // Reset flag on timeout
           // Retry subscription after a delay
           setTimeout(() => {
             if (user?.id) {
@@ -691,14 +703,18 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     isInQueueRef.current = state.isInQueue;
   }, [state.isInQueue]);
 
-  // Setup subscription and restore state on mount
+      // Setup subscription and restore state on mount
   useEffect(() => {
     if (!user?.id) return;
 
     // Restore queue state first, then setup subscription
     const initializeMatchmaking = async () => {
       await restoreQueueState();
-      await setupMatchmakingSubscription();
+      
+      // Only setup subscription if we don't already have a match
+      if (!state.matchFound) {
+        await setupMatchmakingSubscription();
+      }
     };
 
     initializeMatchmaking();

@@ -76,9 +76,13 @@ export default function MatchFound({
             </motion.div>
 
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Match Found!</h3>
+              <h3 className="text-xl font-bold text-white mb-2">
+                {match.player1_accepted && match.player2_accepted ? 'Game Starting!' : 'Match Found!'}
+              </h3>
               <p className="text-gray-400 text-sm">
-                A suitable opponent has been found. Ready to play?
+                {match.player1_accepted && match.player2_accepted 
+                  ? 'Both players accepted! Starting the game...'
+                  : 'A suitable opponent has been found. Ready to play?'}
               </p>
             </div>
 

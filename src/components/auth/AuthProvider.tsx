@@ -36,125 +36,109 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Track if we've already processed a user to prevent duplicate calls
+  // Performance optimizations
   const processedUsers = useRef<Set<string>>(new Set());
-  const hasInitialized = useRef<boolean>(false);
+  const profileCache = useRef<Map<string, UserProfile>>(new Map());
   const initializationPromise = useRef<Promise<void> | null>(null);
   
   // Get store clear functions
   const clearUserData = useUserStore(state => state.clearUserData);
   const clearGameData = useGameStore(state => state.clearGameData);
 
-  // Memoized fetch user profile function
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  // Optimized function to get or create user profile in a single operation
+  const getOrCreateUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    // Check cache first
+    if (profileCache.current.has(userId)) {
+      return profileCache.current.get(userId) || null;
+    }
+
+    // Check if we've already processed this user
+    if (processedUsers.current.has(userId)) {
+      return null; // Already processed, profile should be set
+    }
+
     try {
-      const { data, error } = await supabase
+      // Try to get existing profile
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
       
-      if (error) {
-        console.error('❌ Error fetching user profile:', error);
-        console.error('❌ Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        setProfile(null);
-      } else {
-        setProfile(data);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('❌ Error fetching user profile:', fetchError);
+        return null;
       }
-    } catch (error) {
-      console.error('❌ Exception in fetchUserProfile:', error);
-      setProfile(null);
-    }
-  }, []);
-
-  // Refresh profile function for external use
-  const refreshProfile = useCallback(async () => {
-    if (user) {
-      await fetchUserProfile(user.id);
-    }
-  }, [user, fetchUserProfile]);
-
-  // Memoized helper to ensure a users row exists for every auth user
-  const ensureUserProfile = useCallback(async (user: User) => {
-    if (!user || !user.id) {
-      return;
-    }
-
-    // Check if we've already processed this user in this session
-    if (processedUsers.current.has(user.id)) {
-      return;
-    }
-
-    // Check if we've already initialized for this user
-    if (hasInitialized.current) {
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
+      
+      if (existingProfile) {
+        // Cache the profile
+        profileCache.current.set(userId, existingProfile);
+        processedUsers.current.add(userId);
+        return existingProfile;
+      }
+      
+      // Profile doesn't exist, create one
+      const timestamp = Date.now();
+      const userIdSuffix = userId.slice(0, 8);
+      const finalUsername = `user_${userIdSuffix}_${timestamp}`;
+      
+      const { data: newProfile, error: insertError } = await supabase
         .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ Error checking user profile:', error);
-        console.error('❌ Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-        return;
-      }
-      
-      if (!data) {
-        // No profile exists, create one with default values
-        const timestamp = Date.now();
-        const userIdSuffix = user.id.slice(0, 8);
-        const finalUsername = `user_${userIdSuffix}_${timestamp}`;
-        
-        const { error: insertError } = await supabase.from('users').insert({
-          id: user.id,
+        .insert({
+          id: userId,
           username: finalUsername,
           wins: 0,
           losses: 0,
           rating: 100,
           tutorial_complete: false,
+          total_games_played: 0,
+          games_won: 0,
+          games_lost: 0,
+          games_forfeited: 0,
+          games_canceled: 0,
+          opponents_forfeited: 0,
+          opponents_canceled: 0,
           created_at: new Date().toISOString(),
-        });
-        
-        if (insertError) {
-          // If insert fails due to duplicate key, profile already exists
-          if (insertError.code === '23505') {
-          } else {
-            console.error('❌ Error creating default profile:', insertError);
-            console.error('❌ Insert error details:', {
-              code: insertError.code,
-              message: insertError.message,
-              details: insertError.details,
-              hint: insertError.hint
-            });
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        if (insertError.code === '23505') {
+          // Duplicate key, profile was created by another process
+          // Try to fetch it again
+          const { data: retryProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+          
+          if (retryProfile) {
+            profileCache.current.set(userId, retryProfile);
+            processedUsers.current.add(userId);
+            return retryProfile;
           }
         } else {
+          console.error('❌ Error creating user profile:', insertError);
+          return null;
         }
+      } else if (newProfile) {
+        // Cache the new profile
+        profileCache.current.set(userId, newProfile);
+        processedUsers.current.add(userId);
+        return newProfile;
       }
       
-      // Mark this user as processed
-      processedUsers.current.add(user.id);
-    } catch (err) {
-      console.error('❌ Exception in ensureUserProfile:', err);
+      return null;
+    } catch (error) {
+      console.error('❌ Exception in getOrCreateUserProfile:', error);
+      return null;
     }
   }, []);
 
-  // Memoized function to handle user initialization
+  // Optimized user initialization
   const initializeUser = useCallback(async (sessionUser: User, event?: string) => {
-    if (!sessionUser || !sessionUser.id) return;
+    if (!sessionUser?.id) return;
 
     // If we're already initializing, wait for that to complete
     if (initializationPromise.current) {
@@ -162,32 +146,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // If already initialized, skip
-    if (hasInitialized.current) {
-      return;
-    }
-
     // Create a new initialization promise
     initializationPromise.current = (async () => {
       try {
-        // For OAuth signups, we need to ensure they go through the landing page
+        // For OAuth signups, ensure they go through landing page
         if (event === 'SIGNED_IN' && sessionUser.app_metadata?.provider) {
           console.log('OAuth user signed in, ensuring they go through landing page');
-          // Force redirect to landing page for OAuth users
           if (typeof window !== 'undefined' && window.location.pathname !== '/landing') {
             window.location.href = '/landing';
             return;
           }
         }
         
-        // Ensure profile exists for all users
-        await ensureUserProfile(sessionUser);
-        await fetchUserProfile(sessionUser.id);
+        // Get or create profile in a single operation
+        const userProfile = await getOrCreateUserProfile(sessionUser.id);
+        setProfile(userProfile);
         
-        hasInitialized.current = true;
       } catch (error) {
-        console.error('❌ Error during initialization:', error);
-        throw error;
+        console.error('❌ Error during user initialization:', error);
+        setProfile(null);
       } finally {
         // Clear the promise reference
         initializationPromise.current = null;
@@ -196,28 +173,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Wait for the initialization to complete
     await initializationPromise.current;
-  }, [ensureUserProfile, fetchUserProfile]);
+  }, [getOrCreateUserProfile]);
+
+  // Refresh profile function
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) {
+      // Clear cache and fetch fresh data
+      profileCache.current.delete(user.id);
+      processedUsers.current.delete(user.id);
+      const freshProfile = await getOrCreateUserProfile(user.id);
+      setProfile(freshProfile);
+    }
+  }, [user, getOrCreateUserProfile]);
 
   useEffect(() => {
     let isMounted = true;
     
-          const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (!isMounted) return;
-        
-        console.log('Auth state changed:', event, session?.user?.id);
-        setUser(session?.user ?? null);
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      
+      console.log('Auth state changed:', event, session?.user?.id);
+      setUser(session?.user ?? null);
       
       if (session?.user) {
         try {
           await initializeUser(session.user, event);
         } catch (error) {
           console.error('Error in auth state change handler:', error);
+          setProfile(null);
         }
       } else {
         setProfile(null);
-        // Clear processed users when user signs out
+        // Clear caches when user signs out
         processedUsers.current.clear();
-        hasInitialized.current = false;
+        profileCache.current.clear();
         initializationPromise.current = null;
       }
       
@@ -226,37 +215,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // Get initial session
-          supabase.auth.getSession().then(async ({ data: { session } }) => {
-        if (!isMounted) {
-          return;
-        }
+    // Get initial session with timeout
+    const initializeSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
         
         console.log('Initial session check:', session?.user?.id);
         setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        try {
+        
+        if (session?.user) {
           await initializeUser(session.user);
-        } catch (error) {
-          console.error('Error in initial session handler:', error);
+        }
+      } catch (error) {
+        console.error('Error in initial session handler:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-      
-      if (isMounted) {
+    };
+
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.log('Auth initialization timeout, setting loading to false');
         setLoading(false);
       }
-    });
+    }, 10000); // 10 second timeout
+
+    initializeSession();
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       listener.subscription.unsubscribe();
-      // Clean up processed users on unmount
+      // Clean up caches on unmount
       processedUsers.current.clear();
-      hasInitialized.current = false;
+      profileCache.current.clear();
       initializationPromise.current = null;
     };
-  }, [initializeUser]);
+  }, [initializeUser, loading]);
 
   const signIn = (email: string, password: string) => 
     supabase.auth.signInWithPassword({ email, password });
@@ -283,12 +283,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearUserData();
       clearGameData();
       
+      // Clear caches
+      processedUsers.current.clear();
+      profileCache.current.clear();
+      initializationPromise.current = null;
+      
       // Clear localStorage and sessionStorage
       if (typeof window !== 'undefined') {
-        // Clear all localStorage items
         localStorage.clear();
-        
-        // Clear all sessionStorage items
         sessionStorage.clear();
         
         // Clear any cookies that might be set
@@ -334,6 +336,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (error) {
       throw error;
+    }
+    
+    // Update cache
+    if (data) {
+      profileCache.current.set(user.id, data);
     }
     
     setProfile(data);

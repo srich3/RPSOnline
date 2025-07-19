@@ -9,6 +9,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
   const [timeoutReached, setTimeoutReached] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Loading...");
 
   // Memoized redirect functions to prevent unnecessary re-renders
   const redirectToHome = useCallback(() => {
@@ -31,18 +32,30 @@ export default function LandingPage() {
     router.push('/tutorial');
   }, [router]);
 
-  // Add a timeout to prevent getting stuck
+  // Add a shorter timeout to prevent getting stuck
   useEffect(() => {
     if (user && !profile && !loading) {
       const timer = setTimeout(() => {
         console.log('Landing page - Timeout reached, forcing redirect to tutorial');
         setTimeoutReached(true);
+        setLoadingMessage("Taking longer than expected...");
         forceRedirectToTutorial();
-      }, 5000); // 5 second timeout
+      }, 3000); // Reduced from 5 seconds to 3 seconds
       
       return () => clearTimeout(timer);
     }
   }, [user, profile, loading, forceRedirectToTutorial]);
+
+  // Update loading message based on state
+  useEffect(() => {
+    if (loading) {
+      setLoadingMessage("Loading your profile...");
+    } else if (user && !profile) {
+      setLoadingMessage("Setting up your account...");
+    } else if (user && profile) {
+      setLoadingMessage("Redirecting...");
+    }
+  }, [loading, user, profile]);
 
   useEffect(() => {
     console.log('Landing page - User:', user?.id);
@@ -97,7 +110,11 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900">
-      <div className="text-white text-xl mb-4">Loading...</div>
+      <div className="text-white text-xl mb-4">{loadingMessage}</div>
+      
+      {/* Loading spinner */}
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+      
       {user && !profile && !loading && (
         <div className="text-center">
           <p className="text-white/70 mb-4">Taking longer than expected?</p>
@@ -107,6 +124,15 @@ export default function LandingPage() {
           >
             Continue to Tutorial
           </button>
+        </div>
+      )}
+      
+      {/* Debug info in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 text-white/50 text-sm">
+          <p>User: {user?.id ? 'Yes' : 'No'}</p>
+          <p>Profile: {profile ? 'Yes' : 'No'}</p>
+          <p>Loading: {loading ? 'Yes' : 'No'}</p>
         </div>
       )}
     </div>

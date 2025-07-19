@@ -7,6 +7,7 @@ import { UsernamePrompt } from "../../components/user/UsernamePrompt";
 import ProfileCard from '../../components/user/ProfileCard';
 import StatsOverview from '../../components/user/StatsOverview';
 import QueueManager from '../../components/matchmaking/QueueManager';
+import { supabase } from "../../lib/supabase";
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -61,6 +62,8 @@ export default function Dashboard() {
       fetchProfile(user.id);
     }
   };
+
+
 
   if (!user) {
     return (
@@ -130,6 +133,8 @@ export default function Dashboard() {
                   Game History
                 </button>
               </div>
+              
+
             </div>
             
             {/* Stats Overview */}

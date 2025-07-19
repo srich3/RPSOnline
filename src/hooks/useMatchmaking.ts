@@ -21,6 +21,7 @@ interface MatchmakingState {
   matchFound: Game | null;
   error: string | null;
   loading: boolean;
+  declinePenaltyUntil: number | null; // Timestamp when decline penalty expires
 }
 
 interface UseMatchmakingOptions {
@@ -59,6 +60,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     matchFound: null,
     error: null,
     loading: false,
+    declinePenaltyUntil: null,
   });
 
   const waitTimeRef = useRef<NodeJS.Timeout | null>(null);
@@ -66,6 +68,30 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const matchFoundRef = useRef<Game | null>(null);
   const isInQueueRef = useRef<boolean>(false);
   const subscriptionSetupRef = useRef<boolean>(false);
+
+  // Check if user is under decline penalty
+  const isUnderDeclinePenalty = useCallback(() => {
+    if (!state.declinePenaltyUntil) return false;
+    return Date.now() < state.declinePenaltyUntil;
+  }, [state.declinePenaltyUntil]);
+
+  // Get remaining penalty time in seconds
+  const getRemainingPenaltyTime = useCallback(() => {
+    if (!state.declinePenaltyUntil) return 0;
+    const remaining = Math.ceil((state.declinePenaltyUntil - Date.now()) / 1000);
+    return Math.max(0, remaining);
+  }, [state.declinePenaltyUntil]);
+
+  // Apply decline penalty (10 seconds)
+  const applyDeclinePenalty = useCallback(() => {
+    const penaltyUntil = Date.now() + (10 * 1000); // 10 seconds
+    setState(prev => ({ 
+      ...prev, 
+      declinePenaltyUntil: penaltyUntil,
+      error: 'You declined a match. You must wait 10 seconds before joining the queue again.'
+    }));
+    console.log('⏰ Applied 10-second decline penalty');
+  }, []);
 
   // Save queue state to localStorage
   const saveQueueState = useCallback((queueState: QueueStorageState) => {
@@ -221,7 +247,27 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
   // Join matchmaking queue
   const joinQueue = useCallback(async () => {
-    if (!user?.id || !profile || state.isInQueue) return;
+    if (!user?.id || !profile) return;
+    
+    if (state.isInQueue) {
+      setState(prev => ({ 
+        ...prev, 
+        error: 'You are already in the queue. Please wait for a match or cancel your current search.'
+      }));
+      console.log('⚠️ User already in queue');
+      return;
+    }
+
+    // Check if user is under decline penalty
+    if (isUnderDeclinePenalty()) {
+      const remainingTime = getRemainingPenaltyTime();
+      setState(prev => ({ 
+        ...prev, 
+        error: `You must wait ${remainingTime} more seconds before joining the queue again.`
+      }));
+      console.log(`⏰ User is under decline penalty for ${remainingTime} more seconds`);
+      return;
+    }
 
     console.log('🎯 Joining matchmaking queue for user:', user.id);
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -339,7 +385,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to join queue'
       }));
     }
-  }, [user?.id, profile, state.isInQueue, maxWaitTime, saveQueueState, startNewGame]);
+  }, [user?.id, profile, state.isInQueue, maxWaitTime, saveQueueState, startNewGame, isUnderDeclinePenalty, getRemainingPenaltyTime]);
 
   // Leave matchmaking queue
   const leaveQueue = useCallback(async () => {
@@ -432,6 +478,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       if (success) {
         console.log('❌ Match declined');
         
+        // Apply decline penalty
+        applyDeclinePenalty();
+        
         // Clear match state and queue state
         clearQueueState();
         setState(prev => ({ 
@@ -441,7 +490,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: null,
           estimatedWaitTime: null,
           loading: false,
-          error: null,
         }));
 
         // Update refs
@@ -462,7 +510,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         error: error instanceof Error ? error.message : 'Failed to decline match'
       }));
     }
-  }, [user?.id, clearQueueState]);
+  }, [user?.id, clearQueueState, applyDeclinePenalty]);
 
 
 
@@ -473,6 +521,12 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     // Prevent duplicate subscription setup
     if (subscriptionSetupRef.current) {
       console.log('📡 Subscription already being set up, skipping...');
+      return;
+    }
+
+    // If subscription already exists and is active, don't recreate it
+    if (matchmakingSubscription.current) {
+      console.log('📡 Subscription already exists and active, skipping setup...');
       return;
     }
 
@@ -499,23 +553,32 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           loading: false,
           error: null,
         }));
-        subscriptionSetupRef.current = false; // Reset flag
-        return; // Don't set up subscription if we already have a game
+        // Don't return early - we still need the subscription for updates!
+        console.log('📡 Setting up subscription for existing game updates...');
       }
     } catch (error) {
       console.log('📡 No recent games found, setting up subscription...');
     }
 
-    // Clean up any existing subscription
-    if (matchmakingSubscription.current) {
-      console.log('🧹 Cleaning up existing subscription');
-      matchmakingSubscription.current.unsubscribe();
-      matchmakingSubscription.current = null;
-    }
-
     // Create a simple, focused subscription
+    // Set authentication for Realtime Authorization (required for private channels)
+    await supabase.realtime.setAuth();
+    
+    console.log('🔧 Creating matchmaking channel...');
+    
     const channel = supabase
-      .channel(`matchmaking-${user.id}`)
+      .channel('matchmaking', {
+        config: { private: true }, // Required for realtime.broadcast_changes()
+      })
+      
+      // Test: Listen to system events
+      .on(
+        'system',
+        { event: '*' },
+        (payload) => {
+          console.log('🔧 System event received:', payload);
+        }
+      )
       
       // Test: Listen to presence events
       .on(
@@ -526,24 +589,86 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         }
       )
       
+      // Debug: Listen to ALL broadcast events to see what's happening
+      .on(
+        'broadcast',
+        { event: '*' },
+        (payload) => {
+          console.log('🔍 DEBUG: Received ANY broadcast event:', {
+            type: payload.type,
+            event: payload.event,
+            hasPayload: !!payload.payload,
+            payloadKeys: payload.payload ? Object.keys(payload.payload) : [],
+            timestamp: new Date().toISOString()
+          });
+        }
+      )
+      
       // Primary: Listen for broadcast events from database
       .on(
         'broadcast',
         { event: 'INSERT' },
         (payload) => {
-          console.log('🎯 Broadcast INSERT event:', payload);
-          const game = payload.payload.new as Game;
+          try {
+            console.log('🎯 Broadcast INSERT event:', payload);
+                      console.log('🎯 Payload structure:', {
+            type: payload.type,
+            event: payload.event,
+            payload: payload.payload,
+            new: payload.payload?.new,
+            old: payload.payload?.old,
+            fullPayload: JSON.stringify(payload, null, 2)
+          });
+            
+                      // Try different possible payload structures
+          let game: Game | null = null;
+          
+          // Structure 1: payload.payload.record (realtime.broadcast_changes format)
+          if (payload.payload?.record) {
+            game = payload.payload.record as Game;
+          }
+          // Structure 2: payload.payload.new (standard broadcast)
+          else if (payload.payload?.new) {
+            game = payload.payload.new as Game;
+          }
+          // Structure 3: payload.new (direct broadcast)
+          else if (payload.new) {
+            game = payload.new as Game;
+          }
+          // Structure 4: payload.payload (nested structure)
+          else if (payload.payload && typeof payload.payload === 'object' && 'id' in payload.payload) {
+            game = payload.payload as Game;
+          }
+          
+          if (!game) {
+            console.error('❌ No game data found in payload. Available keys:', Object.keys(payload));
+            console.error('❌ Payload structure:', JSON.stringify(payload, null, 2));
+            return;
+          }
+            
+            if (!user?.id) {
+              console.error('❌ No user ID available');
+              return;
+            }
+          
           console.log('🎯 Game details:', { 
             id: game.id, 
             player1_id: game.player1_id, 
             player2_id: game.player2_id, 
             status: game.status,
-            our_id: user.id 
+            our_id: user?.id 
           });
           
           // Check if this game is for us
           if ((game.player1_id === user.id || game.player2_id === user.id) && game.status === 'waiting') {
             console.log('🎮 Match found for us via broadcast! Starting game...');
+            console.log('🎯 Match details:', {
+              gameId: game.id,
+              player1: game.player1_id,
+              player2: game.player2_id,
+              ourId: user.id,
+              status: game.status
+            });
             
             // Clear queue state from localStorage
             clearQueueState();
@@ -575,7 +700,17 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               }, 1000);
             }
           } else {
-            console.log('🎯 Game not for us or not waiting status');
+            console.log('🎯 Game not for us or not waiting status:', {
+              gamePlayer1: game.player1_id,
+              gamePlayer2: game.player2_id,
+              ourId: user.id,
+              isPlayer1: game.player1_id === user.id,
+              isPlayer2: game.player2_id === user.id,
+              status: game.status
+            });
+          }
+          } catch (error) {
+            console.error('❌ Error in INSERT broadcast handler:', error);
           }
         }
       )
@@ -585,8 +720,38 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         'broadcast',
         { event: 'UPDATE' },
         (payload) => {
-          console.log('🔄 Broadcast UPDATE event:', payload);
-          const game = payload.payload.new as Game;
+          try {
+            console.log('🔄 Broadcast UPDATE event:', payload);
+                        // Try different possible payload structures for UPDATE
+            let game: Game | null = null;
+            
+            // Structure 1: payload.payload.record (realtime.broadcast_changes format)
+            if (payload.payload?.record) {
+              game = payload.payload.record as Game;
+            }
+            // Structure 2: payload.payload.new (standard broadcast)
+            else if (payload.payload?.new) {
+              game = payload.payload.new as Game;
+            }
+            // Structure 3: payload.new (direct broadcast)
+            else if (payload.new) {
+              game = payload.new as Game;
+            }
+            // Structure 4: payload.payload (nested structure)
+            else if (payload.payload && typeof payload.payload === 'object' && 'id' in payload.payload) {
+              game = payload.payload as Game;
+            }
+            
+            if (!game) {
+              console.error('❌ No game data found in UPDATE payload. Available keys:', Object.keys(payload));
+              console.error('❌ UPDATE payload structure:', JSON.stringify(payload, null, 2));
+              return;
+            }
+          
+          if (!user?.id) {
+            console.error('❌ No user ID available for UPDATE');
+            return;
+          }
           
           // Check if this game is for us
           if (game.player1_id === user.id || game.player2_id === user.id) {
@@ -630,7 +795,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               matchFoundRef.current = game;
             }
           }
+        } catch (error) {
+          console.error('❌ Error in UPDATE broadcast handler:', error);
         }
+      }
       )
       
       // Listen for game deletions (declines) via broadcast
@@ -638,8 +806,38 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         'broadcast',
         { event: 'DELETE' },
         (payload) => {
-          console.log('❌ Broadcast DELETE event:', payload);
-          const game = payload.payload.old as Game;
+          try {
+            console.log('❌ Broadcast DELETE event:', payload);
+                        // Try different possible payload structures for DELETE
+            let game: Game | null = null;
+            
+            // Structure 1: payload.payload.old_record (realtime.broadcast_changes format)
+            if (payload.payload?.old_record) {
+              game = payload.payload.old_record as Game;
+            }
+            // Structure 2: payload.payload.old (standard broadcast)
+            else if (payload.payload?.old) {
+              game = payload.payload.old as Game;
+            }
+            // Structure 3: payload.old (direct broadcast)
+            else if (payload.old) {
+              game = payload.old as Game;
+            }
+            // Structure 4: payload.payload (nested structure)
+            else if (payload.payload && typeof payload.payload === 'object' && 'id' in payload.payload) {
+              game = payload.payload as Game;
+            }
+            
+            if (!game) {
+              console.error('❌ No game data found in DELETE payload. Available keys:', Object.keys(payload));
+              console.error('❌ DELETE payload structure:', JSON.stringify(payload, null, 2));
+              return;
+            }
+          
+          if (!user?.id) {
+            console.error('❌ No user ID available for DELETE');
+            return;
+          }
           
           // Check if this game was for us
           if (game.player1_id === user.id || game.player2_id === user.id) {
@@ -661,46 +859,46 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             matchFoundRef.current = null;
             isInQueueRef.current = false;
             
-            // Show notification that other player declined
+            // When a match is declined, both players stay out of queue
+            // The declining player has a penalty, the other player can manually rejoin
+            console.log('❌ Match was declined - staying out of queue');
             setState(prev => ({ 
               ...prev, 
-              error: 'The other player declined the match. Rejoining queue...',
+              error: 'The match was declined. You can manually rejoin the queue when ready.',
             }));
-            
-            // Rejoin queue after a short delay for the non-declining player
-            setTimeout(() => {
-              joinQueue();
-            }, 3000);
           }
+        } catch (error) {
+          console.error('❌ Error in DELETE broadcast handler:', error);
         }
+      }
       )
       
       .subscribe((status) => {
         console.log('📡 Matchmaking subscription status:', status);
+        console.log('📡 Subscription details:', {
+          status,
+          timestamp: new Date().toISOString(),
+          userId: user?.id,
+          channelName: 'matchmaking'
+        });
         
         if (status === 'SUBSCRIBED') {
           console.log('✅ Matchmaking subscription active');
+          console.log('🎯 Channel is ready to receive broadcasts!');
           subscriptionSetupRef.current = false; // Reset flag on success
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Matchmaking subscription error - will retry in 5s');
+          console.error('❌ Matchmaking subscription error - keeping subscription open');
           subscriptionSetupRef.current = false; // Reset flag on error
-          // Retry subscription after a delay
-          setTimeout(() => {
-            if (user?.id) {
-              console.log('🔄 Retrying matchmaking subscription...');
-              setupMatchmakingSubscription();
-            }
-          }, 5000);
+          // Don't retry - keep the subscription open
         } else if (status === 'TIMED_OUT') {
-          console.warn('⏰ Matchmaking subscription timed out - will retry in 2s');
+          console.warn('⏰ Matchmaking subscription timed out - keeping subscription open');
           subscriptionSetupRef.current = false; // Reset flag on timeout
-          // Retry subscription after a delay
-          setTimeout(() => {
-            if (user?.id) {
-              console.log('🔄 Retrying matchmaking subscription...');
-              setupMatchmakingSubscription();
-            }
-          }, 2000);
+          // Don't retry - keep the subscription open
+        } else if (status === 'CLOSED') {
+          console.warn('🔒 Matchmaking subscription closed');
+          subscriptionSetupRef.current = false;
+        } else {
+          console.log('📡 Other subscription status:', status);
         }
       });
 
@@ -716,6 +914,33 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     isInQueueRef.current = state.isInQueue;
   }, [state.isInQueue]);
 
+  // Clear penalty when it expires
+  useEffect(() => {
+    if (!state.declinePenaltyUntil) return;
+
+    const remainingTime = getRemainingPenaltyTime();
+    if (remainingTime <= 0) {
+      setState(prev => ({ 
+        ...prev, 
+        declinePenaltyUntil: null,
+        error: null 
+      }));
+      console.log('✅ Decline penalty expired');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setState(prev => ({ 
+        ...prev, 
+        declinePenaltyUntil: null,
+        error: null 
+      }));
+      console.log('✅ Decline penalty expired');
+    }, remainingTime * 1000);
+
+    return () => clearTimeout(timer);
+  }, [state.declinePenaltyUntil, getRemainingPenaltyTime]);
+
       // Setup subscription and restore state on mount
   useEffect(() => {
     if (!user?.id) return;
@@ -724,10 +949,8 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     const initializeMatchmaking = async () => {
       await restoreQueueState();
       
-      // Only setup subscription if we don't already have a match
-      if (!state.matchFound) {
-        await setupMatchmakingSubscription();
-      }
+      // Always setup subscription - we need it for updates even with existing matches
+      await setupMatchmakingSubscription();
     };
 
     initializeMatchmaking();
@@ -736,8 +959,10 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     startQueueCleanup();
 
     return () => {
-      // Cleanup subscription
-      if (matchmakingSubscription.current) {
+      // Only cleanup subscription if no match is found
+      // Keep subscription open when match is found for updates
+      if (matchmakingSubscription.current && !state.matchFound) {
+        console.log('🧹 Cleaning up matchmaking subscription (no match found)');
         matchmakingSubscription.current.unsubscribe();
       }
       
@@ -772,6 +997,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     matchFound: state.matchFound,
     error: state.error,
     loading: state.loading,
+    declinePenaltyUntil: state.declinePenaltyUntil,
+    isUnderDeclinePenalty: isUnderDeclinePenalty(),
+    remainingPenaltyTime: getRemainingPenaltyTime(),
     
     // Actions
     joinQueue,

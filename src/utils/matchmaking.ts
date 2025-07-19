@@ -71,28 +71,95 @@ export async function joinMatchmakingQueue(userId: string, username: string, rat
     }
     console.log('✅ User authenticated:', session.user.id);
     
-    // Add to database queue (trigger will handle matchmaking)
-    const { data: queueEntry, error: dbError } = await supabase
-      .from('game_queue')
-      .insert({
-        user_id: userId,
-      })
-      .select()
-      .single();
+    // Check if user is already in the queue
+    try {
+      const { data: existingEntry, error: checkError } = await supabase
+        .from('game_queue')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (dbError) {
-      console.error('Error adding to database queue:', dbError);
-      console.error('Error details:', {
-        code: dbError.code,
-        message: dbError.message,
-        details: dbError.details,
-        hint: dbError.hint
-      });
+      if (checkError) {
+        console.error('Error checking existing queue entry:', checkError);
+        console.error('Error details:', {
+          code: checkError.code,
+          message: checkError.message,
+          details: checkError.details,
+          hint: checkError.hint
+        });
+        return false;
+      }
+
+      if (existingEntry) {
+        console.log('⚠️ User already in queue:', existingEntry);
+        return true; // Return true since they're already in the queue
+      }
+    } catch (error) {
+      console.error('Exception checking existing queue entry:', error);
       return false;
     }
+    
+    // Add to database queue (trigger will handle matchmaking)
+    try {
+      console.log('🎯 Attempting to insert into game_queue for user:', userId);
+      
+      const { data: queueEntry, error: dbError } = await supabase
+        .from('game_queue')
+        .insert({
+          user_id: userId,
+        })
+        .select()
+        .single();
 
-    console.log('✅ Added to database queue:', queueEntry);
-    console.log('🎯 Database trigger will automatically process matchmaking');
+      if (dbError) {
+        console.error('Error adding to database queue:', dbError);
+        console.error('Error details:', {
+          code: dbError.code,
+          message: dbError.message,
+          details: dbError.details,
+          hint: dbError.hint
+        });
+        return false;
+      }
+
+      console.log('✅ Added to database queue:', queueEntry);
+      console.log('🎯 Database trigger will automatically process matchmaking');
+      
+      // Debug: Check if there are other players in queue
+      const { data: queuePlayers, error: queueError } = await supabase
+        .from('game_queue')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (queueError) {
+        console.error('Error checking queue players:', queueError);
+      } else {
+        console.log('📋 Current queue players:', queuePlayers);
+        console.log('👥 Total players in queue:', queuePlayers?.length || 0);
+        
+        // If there are 2 or more players, check if a game was created
+        if (queuePlayers && queuePlayers.length >= 2) {
+          console.log('🔍 Multiple players in queue, checking for new games...');
+          
+          // Check for recent games
+          const { data: recentGames, error: gamesError } = await supabase
+            .from('games')
+            .select('*')
+            .eq('status', 'waiting')
+            .gte('created_at', new Date(Date.now() - 10000).toISOString()) // Last 10 seconds
+            .order('created_at', { ascending: false });
+          
+          if (gamesError) {
+            console.error('Error checking recent games:', gamesError);
+          } else {
+            console.log('🎮 Recent waiting games:', recentGames);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Exception adding to database queue:', error);
+      return false;
+    }
 
     return true;
   } catch (error) {
@@ -261,6 +328,24 @@ export async function declineMatch(gameId: string, userId: string): Promise<bool
     // Get the other player's ID
     const otherPlayerId = game.player1_id === userId ? game.player2_id : game.player1_id;
     
+    // Check if game still exists before trying to delete
+    const { data: existingGame, error: checkError } = await supabase
+      .from('games')
+      .select('id')
+      .eq('id', gameId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking if game exists:', checkError);
+      return false;
+    }
+
+    // If game doesn't exist, it was already declined/deleted
+    if (!existingGame) {
+      console.log('Game already deleted/declined:', gameId);
+      return true; // Return true since the goal was achieved
+    }
+
     // Delete the game
     const { data: deletedGame, error: gameError } = await supabase
       .from('games')

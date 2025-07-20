@@ -76,7 +76,7 @@ export default function LandingPage() {
     if (profile) {
       console.log('Landing page - Profile found:', profile.username, 'tutorial_complete:', profile.tutorial_complete);
       
-      // Check if user has a temporary username (OAuth users)
+      // Check if user has a temporary username (both signup form and OAuth users)
       if (profile.username && profile.username.startsWith('user_')) {
         console.log('Landing page - Temporary username detected:', profile.username);
         setShowUsernamePrompt(true);

@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, User, Check, X, Search } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { createUserProfile, checkUsernameAvailability, supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface SignUpFormProps {
@@ -13,7 +13,6 @@ interface SignUpFormProps {
 }
 
 export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose }) => {
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,34 +21,10 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
-  const [usernameChecked, setUsernameChecked] = useState(false);
-  const [checkingUsername, setCheckingUsername] = useState(false);
-  const [usernameError, setUsernameError] = useState('');
   const [success, setSuccess] = useState(false);
   
   const { signUp, refreshProfile } = useAuth();
   const router = useRouter();
-
-  // Username validation rules
-  const validateUsernameFormat = (username: string): { valid: boolean; error: string } => {
-    if (username.length < 3) {
-      return { valid: false, error: 'Username must be at least 3 characters long' };
-    }
-    if (username.length > 20) {
-      return { valid: false, error: 'Username must be 20 characters or less' };
-    }
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      return { valid: false, error: 'Username can only contain letters, numbers, hyphens, and underscores' };
-    }
-    if (username.startsWith('-') || username.endsWith('-') || username.startsWith('_') || username.endsWith('_')) {
-      return { valid: false, error: 'Username cannot start or end with hyphens or underscores' };
-    }
-    if (/--|__|-_|_-/.test(username)) {
-      return { valid: false, error: 'Username cannot contain consecutive hyphens or underscores' };
-    }
-    return { valid: true, error: '' };
-  };
 
   // Password strength validation
   const getPasswordStrength = (password: string) => {
@@ -62,86 +37,10 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
 
   const passwordStrength = getPasswordStrength(password);
 
-  // Check username availability
-  const handleCheckUsername = async () => {
-    if (!username.trim()) {
-      setUsernameError('Please enter a username');
-      return;
-    }
-
-    const formatValidation = validateUsernameFormat(username);
-    if (!formatValidation.valid) {
-      setUsernameError(formatValidation.error);
-      setUsernameAvailable(false);
-      setUsernameChecked(false);
-      return;
-    }
-
-    setCheckingUsername(true);
-    setUsernameError('');
-    setUsernameChecked(false);
-
-    try {
-      console.log('Checking username availability for:', username);
-      const { available, error } = await checkUsernameAvailability(username);
-      
-      console.log('Username check result:', { available, error });
-      
-      if (error) {
-        console.error('Username check error:', error);
-        setUsernameError('Error checking username availability. Please try again.');
-        setUsernameAvailable(false);
-        setUsernameChecked(false);
-      } else {
-        setUsernameAvailable(available);
-        setUsernameChecked(true);
-        if (!available) {
-          setUsernameError('Username is already taken');
-        }
-      }
-    } catch (err) {
-      console.error('Username check exception:', err);
-      setUsernameError('Error checking username availability. Please try again.');
-      setUsernameAvailable(false);
-      setUsernameChecked(false);
-    } finally {
-      setCheckingUsername(false);
-    }
-  };
-
-  const handleUsernameChange = (value: string) => {
-    setUsername(value);
-    setUsernameChecked(false);
-    setUsernameAvailable(null);
-    setUsernameError('');
-    
-    // Clear format errors when user starts typing
-    if (value.length > 0) {
-      const formatValidation = validateUsernameFormat(value);
-      if (formatValidation.valid) {
-        setUsernameError('');
-      }
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
-    // Validation
-    if (!usernameChecked || usernameAvailable !== true) {
-      setError('Please check username availability first');
-      setLoading(false);
-      return;
-    }
-
-    const formatValidation = validateUsernameFormat(username);
-    if (!formatValidation.valid) {
-      setError(formatValidation.error);
-      setLoading(false);
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -166,18 +65,23 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
       if (error) {
         setError(error.message);
       } else if (data?.user) {
-        console.log('User created successfully, creating profile with username:', username);
+        console.log('User created successfully, creating profile with temporary username');
         
-        // Create the user profile directly with the username
+        // Create a temporary username
+        const timestamp = Date.now();
+        const userIdSuffix = data.user.id.slice(0, 8);
+        const tempUsername = `user_${userIdSuffix}_${timestamp}`;
+        
+        // Create the user profile with temporary username
         try {
           const { error: profileError } = await supabase
             .from('users')
             .insert({
               id: data.user.id,
-              username,
+              username: tempUsername,
               wins: 0,
               losses: 0,
-                                rating: 100,
+              rating: 100,
               tutorial_complete: false,
               created_at: new Date().toISOString(),
             })
@@ -185,10 +89,10 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
             .single();
             
           if (profileError) {
-            console.error('Error creating profile with username:', profileError);
-            setError('Account created, but failed to save username. Please contact support.');
+            console.error('Error creating profile with temporary username:', profileError);
+            setError('Account created, but failed to save profile. Please contact support.');
           } else {
-            console.log('Profile created successfully with username:', username);
+            console.log('Profile created successfully with temporary username:', tempUsername);
             setSuccess(true);
             
             // Refresh the profile in AuthProvider
@@ -206,7 +110,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
           }
         } catch (err) {
           console.error('Exception creating profile:', err);
-          setError('Account created, but failed to save username. Please contact support.');
+          setError('Account created, but failed to save profile. Please contact support.');
         }
       }
     } catch (err) {
@@ -241,83 +145,6 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Username Field */}
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Username
-            </label>
-            <div className="space-y-2">
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => handleUsernameChange(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                  placeholder="Choose a username"
-                  required
-                  minLength={3}
-                  maxLength={20}
-                />
-              </div>
-              
-              {/* Check Username Button */}
-              <button
-                type="button"
-                onClick={handleCheckUsername}
-                disabled={checkingUsername || !username.trim()}
-                className="w-full bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
-              >
-                {checkingUsername ? (
-                  <>
-                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                    Checking...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4 mr-2" />
-                    Check Username
-                  </>
-                )}
-              </button>
-              
-              {/* Username Status */}
-              {username.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  {usernameChecked && usernameAvailable === true && (
-                    <>
-                      <Check className="h-4 w-4 text-green-500" />
-                      <span className="text-sm text-green-600 dark:text-green-400">Username available</span>
-                    </>
-                  )}
-                  {usernameChecked && usernameAvailable === false && (
-                    <>
-                      <X className="h-4 w-4 text-red-500" />
-                      <span className="text-sm text-red-600 dark:text-red-400">Username taken</span>
-                    </>
-                  )}
-                  {!usernameChecked && username.length >= 3 && (
-                    <span className="text-sm text-gray-500">Click "Check Username" to verify availability</span>
-                  )}
-                </div>
-              )}
-              
-              {/* Username Error */}
-              {usernameError && (
-                <p className="text-sm text-red-600 dark:text-red-400">{usernameError}</p>
-              )}
-              
-              {/* Username Requirements */}
-              <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                <p>• 3-20 characters long</p>
-                <p>• Letters, numbers, hyphens, and underscores only</p>
-                <p>• Cannot start or end with hyphens or underscores</p>
-                <p>• No consecutive hyphens or underscores</p>
-              </div>
-            </div>
-          </div>
-
           {/* Email Field */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -453,7 +280,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onClose
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || !usernameChecked || usernameAvailable !== true}
+            disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
           >
             {loading ? (

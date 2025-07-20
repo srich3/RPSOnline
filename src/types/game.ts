@@ -1,4 +1,4 @@
-export type GameStatus = 'waiting' | 'active' | 'finished';
+export type GameStatus = 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled';
 export type TurnPhase = 'planning' | 'resolving' | 'complete';
 export type ActionType = 'claim' | 'attack' | 'defend' | 'conquer';
 

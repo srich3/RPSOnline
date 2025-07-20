@@ -16,6 +16,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     queuePosition,
     estimatedWaitTime,
     matchFound,
+    matchFoundData,
     error,
     loading,
     isUnderDeclinePenalty,
@@ -72,7 +73,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     
     if (!opponentId) return null;
     
-    // For now, we'll show the opponent ID, but ideally we'd fetch their profile
+    // For now, show the opponent ID - we'll fetch usernames separately
     return {
       id: opponentId,
       username: `Player ${opponentId.slice(0, 8)}...`,
@@ -138,6 +139,43 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     return `${seconds}s`;
   };
 
+  // Add state for opponent username
+  const [opponentUsername, setOpponentUsername] = useState<string | null>(null);
+  const [loadingOpponent, setLoadingOpponent] = useState(false);
+
+  // Fetch opponent username when matchFound changes
+  useEffect(() => {
+    const fetchOpponentUsername = async () => {
+      if (!matchFound || !user) {
+        setOpponentUsername(null);
+        return;
+      }
+      const isPlayer1 = matchFound.player1_id === user.id;
+      const opponentId = isPlayer1 ? matchFound.player2_id : matchFound.player1_id;
+      if (!opponentId) {
+        setOpponentUsername(null);
+        return;
+      }
+      setLoadingOpponent(true);
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('username')
+          .eq('id', opponentId)
+          .single();
+        if (error || !data) {
+          setOpponentUsername('Unknown');
+        } else {
+          setOpponentUsername(data.username);
+        }
+      } catch (err) {
+        setOpponentUsername('Unknown');
+      } finally {
+        setLoadingOpponent(false);
+      }
+    };
+    fetchOpponentUsername();
+  }, [matchFound, user]);
 
 
   if (!user) {
@@ -213,43 +251,82 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 </motion.div>
                 <h4 className="text-white font-medium mb-2">Match Found!</h4>
                 <p className="text-gray-400 text-sm mb-4">
-                  A player is ready to challenge you!
+                  {loadingOpponent
+                    ? 'Loading opponent...'
+                    : opponentUsername
+                      ? `${opponentUsername} is ready to challenge you!`
+                      : 'A player is ready to challenge you!'}
                 </p>
               </div>
 
               {/* Acceptance Status */}
               {acceptanceStatus && (
-                <div className="bg-gray-700/50 rounded-lg p-4">
+                <motion.div 
+                  className="bg-gray-700/50 rounded-lg p-4"
+                  initial={{ scale: 0.95, opacity: 0.8 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <div className="text-center space-y-3">
                     {acceptanceStatus.bothAccepted ? (
                       <>
-                        <div className="flex items-center justify-center space-x-2">
+                        <motion.div 
+                          className="flex items-center justify-center space-x-2"
+                          initial={{ scale: 0.8 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
                           <Check className="w-5 h-5 text-green-400" />
                           <span className="text-green-400 font-medium">Both Players Accepted!</span>
-                        </div>
-                        <p className="text-gray-400 text-sm">
+                        </motion.div>
+                        <motion.p 
+                          className="text-gray-400 text-sm"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                        >
                           Starting game...
-                        </p>
+                        </motion.p>
                       </>
                     ) : acceptanceStatus.hasAccepted ? (
                       <>
-                        <div className="flex items-center justify-center space-x-2">
+                        <motion.div 
+                          className="flex items-center justify-center space-x-2"
+                          initial={{ scale: 0.8 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
                           <Clock className="w-5 h-5 text-orange-400" />
                           <span className="text-orange-400 font-medium">Waiting on Opponent</span>
-                        </div>
-                        <p className="text-gray-400 text-sm">
+                        </motion.div>
+                        <motion.p 
+                          className="text-gray-400 text-sm"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                        >
                           You've accepted. Waiting for the other player...
-                        </p>
+                        </motion.p>
                       </>
                     ) : acceptanceStatus.opponentAccepted ? (
                       <>
-                        <div className="flex items-center justify-center space-x-2">
+                        <motion.div 
+                          className="flex items-center justify-center space-x-2"
+                          initial={{ scale: 0.8 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
                           <Check className="w-5 h-5 text-green-400" />
                           <span className="text-green-400 font-medium">Opponent Has Accepted</span>
-                        </div>
-                        <p className="text-gray-400 text-sm">
+                        </motion.div>
+                        <motion.p 
+                          className="text-gray-400 text-sm"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                        >
                           The other player is ready. Please accept to start!
-                        </p>
+                        </motion.p>
                       </>
                     ) : (
                       <>
@@ -263,7 +340,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                       </>
                     )}
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Countdown Timer - Only show if current player hasn't accepted yet */}

@@ -286,7 +286,7 @@ export const getWaitingGames = async () => {
       player1:users!games_player1_id_fkey(username)
     `)
     .eq('status', 'waiting')
-    .is('completion_type', null) // Only include games that haven't been completed/canceled
+            .in('status', ['waiting', 'active']) // Only include games that haven't been completed/canceled
     .order('created_at', { ascending: false });
 };
 

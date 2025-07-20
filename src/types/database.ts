@@ -76,7 +76,7 @@ export interface Database {
           id: string
           player1_id: string
           player2_id: string | null
-          status: 'waiting' | 'active' | 'finished'
+          status: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
           winner_id: string | null
           game_state: Json
           turn_number: number
@@ -84,7 +84,6 @@ export interface Database {
           updated_at: string
           player1_accepted: boolean
           player2_accepted: boolean
-          completion_type: 'winner_determined' | 'forfeit' | 'canceled' | null
           completed_at: string | null
           forfeited_by: string | null
           canceled_by: string | null
@@ -93,7 +92,7 @@ export interface Database {
           id?: string
           player1_id: string
           player2_id?: string | null
-          status?: 'waiting' | 'active' | 'finished'
+          status?: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
@@ -101,7 +100,6 @@ export interface Database {
           updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
-          completion_type?: 'winner_determined' | 'forfeit' | 'canceled' | null
           completed_at?: string | null
           forfeited_by?: string | null
           canceled_by?: string | null
@@ -110,7 +108,7 @@ export interface Database {
           id?: string
           player1_id?: string
           player2_id?: string | null
-          status?: 'waiting' | 'active' | 'finished'
+          status?: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
@@ -118,7 +116,6 @@ export interface Database {
           updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
-          completion_type?: 'winner_determined' | 'forfeit' | 'canceled' | null
           completed_at?: string | null
           forfeited_by?: string | null
           canceled_by?: string | null
@@ -363,7 +360,7 @@ export interface GameState {
   id: string;
   player1_id: string;
   player2_id: string;
-  status: 'waiting' | 'active' | 'finished';
+  status: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled';
   winner_id?: string | null;
   game_state: any; // JSONB, can be refined later
   turn_number: number;

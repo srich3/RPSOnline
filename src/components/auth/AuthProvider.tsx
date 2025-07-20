@@ -45,48 +45,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const clearUserData = useUserStore(state => state.clearUserData);
   const clearGameData = useGameStore(state => state.clearGameData);
 
-  // Optimized function to get or create user profile in a single operation
-  const getOrCreateUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
-    // Check cache first
-    if (profileCache.current.has(userId)) {
-      return profileCache.current.get(userId) || null;
-    }
-
-    // Check if we've already processed this user
-    if (processedUsers.current.has(userId)) {
-      return null; // Already processed, profile should be set
-    }
-
+  // Function to create profile for users (both OAuth and signup form)
+  const createOAuthUserProfile = useCallback(async (userId: string, sessionUser?: User): Promise<UserProfile | null> => {
     try {
-      // Try to get existing profile
-      const { data: existingProfile, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('❌ Error fetching user profile:', fetchError);
-        return null;
-      }
-      
-      if (existingProfile) {
-        // Cache the profile
-        profileCache.current.set(userId, existingProfile);
-        processedUsers.current.add(userId);
-        return existingProfile;
-      }
-      
-      // Profile doesn't exist, create one
+      // Always create a temporary username for consistency
       const timestamp = Date.now();
       const userIdSuffix = userId.slice(0, 8);
-      const finalUsername = `user_${userIdSuffix}_${timestamp}`;
+      const tempUsername = `user_${userIdSuffix}_${timestamp}`;
+      
+      console.log('Creating profile with temporary username:', tempUsername);
       
       const { data: newProfile, error: insertError } = await supabase
         .from('users')
         .insert({
           id: userId,
-          username: finalUsername,
+          username: tempUsername,
           wins: 0,
           losses: 0,
           rating: 100,
@@ -131,6 +104,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       return null;
     } catch (error) {
+      console.error('❌ Exception in createOAuthUserProfile:', error);
+      return null;
+    }
+  }, []);
+
+  // Optimized function to get or create user profile in a single operation
+  const getOrCreateUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    // Check cache first
+    if (profileCache.current.has(userId)) {
+      return profileCache.current.get(userId) || null;
+    }
+
+    // Check if we've already processed this user
+    if (processedUsers.current.has(userId)) {
+      return null; // Already processed, profile should be set
+    }
+
+    try {
+      // Try to get existing profile
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('❌ Error fetching user profile:', fetchError);
+        return null;
+      }
+      
+      if (existingProfile) {
+        // Cache the profile
+        profileCache.current.set(userId, existingProfile);
+        processedUsers.current.add(userId);
+        return existingProfile;
+      }
+      
+      // Profile doesn't exist - don't create one automatically
+      // Let the SignUpForm or OAuth flow handle profile creation
+      console.log('No profile found for user:', userId, '- profile should be created by SignUpForm or OAuth flow');
+      return null;
+      
+    } catch (error) {
       console.error('❌ Exception in getOrCreateUserProfile:', error);
       return null;
     }
@@ -149,15 +165,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Create a new initialization promise
     initializationPromise.current = (async () => {
       try {
-        // For OAuth signups, ensure they go through landing page
-        if (event === 'SIGNED_IN' && sessionUser.app_metadata?.provider) {
-          console.log('OAuth user signed in, ensuring they go through landing page');
-          // Don't force redirect here - let the landing page handle it
-          // This was causing issues with the initialization flow
+        console.log('Initializing user:', sessionUser.id, 'Event:', event);
+        
+        // First try to get existing profile
+        const existingProfile = await getOrCreateUserProfile(sessionUser.id);
+        if (existingProfile) {
+          console.log('User already has profile:', existingProfile.username);
+          setProfile(existingProfile);
+          return;
         }
         
-        // Get or create profile in a single operation
-        const userProfile = await getOrCreateUserProfile(sessionUser.id);
+        // No profile exists - this could be a new user from signup form or OAuth
+        // Check if this is a very new user (likely just created)
+        const userCreatedAt = new Date(sessionUser.created_at);
+        const now = new Date();
+        const timeDiff = now.getTime() - userCreatedAt.getTime();
+        const isVeryNewUser = timeDiff < 10000; // 10 seconds
+        
+        if (isVeryNewUser) {
+          console.log('Very new user detected, skipping auto-profile creation - let SignUpForm handle it');
+          setProfile(null);
+          return;
+        }
+        
+        // For existing users without profiles (shouldn't happen in normal flow), create one
+        console.log('Creating profile for existing user without profile');
+        const userProfile = await createOAuthUserProfile(sessionUser.id, sessionUser);
         setProfile(userProfile);
         
       } catch (error) {
@@ -171,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Wait for the initialization to complete
     await initializationPromise.current;
-  }, [getOrCreateUserProfile]);
+  }, [getOrCreateUserProfile, createOAuthUserProfile]);
 
   // Refresh profile function
   const refreshProfile = useCallback(async () => {

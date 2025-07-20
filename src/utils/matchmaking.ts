@@ -146,6 +146,7 @@ export async function joinMatchmakingQueue(userId: string, username: string, rat
             .from('games')
             .select('*')
             .eq('status', 'waiting')
+            .is('completion_type', null) // Only include games that haven't been completed/canceled
             .gte('created_at', new Date(Date.now() - 10000).toISOString()) // Last 10 seconds
             .order('created_at', { ascending: false });
           
@@ -468,7 +469,8 @@ export function startQueueCleanup(): void {
       const { data: activePlayers, error: fetchError } = await supabase
         .from('games')
         .select('player1_id, player2_id')
-        .in('status', ['waiting', 'active']);
+        .in('status', ['waiting', 'active'])
+        .is('completion_type', null); // Only include games that haven't been completed/canceled
       
       if (fetchError) {
         console.error('Error fetching active players:', fetchError);

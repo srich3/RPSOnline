@@ -173,6 +173,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             .select('*')
             .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
             .eq('status', 'waiting')
+            .is('completion_type', null) // Only include games that haven't been completed/canceled
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -284,6 +285,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         .select('*')
         .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
         .in('status', ['waiting', 'active'])
+        .is('completion_type', null) // Only include games that haven't been completed/canceled
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -538,6 +540,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         .select('*')
         .or(`player1_id.eq.${user.id},player2_id.eq.${user.id}`)
         .eq('status', 'waiting')
+        .is('completion_type', null) // Only include games that haven't been completed/canceled
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -786,13 +789,42 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               matchFoundRef.current = null;
               isInQueueRef.current = false;
             } else if (matchFoundRef.current?.id === game.id) {
-              // Update the match found state with latest acceptance info
-              console.log('🔄 Match acceptance updated:', game);
-              setState(prev => ({ 
-                ...prev, 
-                matchFound: game,
-              }));
-              matchFoundRef.current = game;
+              // Check if the game was canceled (status changed to finished with completion_type)
+              if (game.status === 'finished' && game.completion_type === 'canceled') {
+                console.log('❌ Our game was canceled (match declined)');
+                
+                // Clear match state and queue state
+                clearQueueState();
+                setState(prev => ({ 
+                  ...prev, 
+                  matchFound: null,
+                  isInQueue: false,
+                  queuePosition: null,
+                  estimatedWaitTime: null,
+                  loading: false,
+                  error: null,
+                }));
+                
+                // Update refs
+                matchFoundRef.current = null;
+                isInQueueRef.current = false;
+                
+                // When a match is declined, both players stay out of queue
+                // The declining player has a penalty, the other player can manually rejoin
+                console.log('❌ Match was declined - staying out of queue');
+                setState(prev => ({ 
+                  ...prev, 
+                  error: 'The match was declined. You can manually rejoin the queue when ready.',
+                }));
+              } else {
+                // Update the match found state with latest acceptance info
+                console.log('🔄 Match acceptance updated:', game);
+                setState(prev => ({ 
+                  ...prev, 
+                  matchFound: game,
+                }));
+                matchFoundRef.current = game;
+              }
             }
           }
         } catch (error) {

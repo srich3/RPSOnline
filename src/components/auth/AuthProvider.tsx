@@ -152,10 +152,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // For OAuth signups, ensure they go through landing page
         if (event === 'SIGNED_IN' && sessionUser.app_metadata?.provider) {
           console.log('OAuth user signed in, ensuring they go through landing page');
-          if (typeof window !== 'undefined' && window.location.pathname !== '/landing') {
-            window.location.href = '/landing';
-            return;
-          }
+          // Don't force redirect here - let the landing page handle it
+          // This was causing issues with the initialization flow
         }
         
         // Get or create profile in a single operation
@@ -243,7 +241,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('Auth initialization timeout, setting loading to false');
         setLoading(false);
       }
-    }, 10000); // 10 second timeout
+    }, 8000); // Reduced from 10 seconds to 8 seconds for faster fallback
 
     initializeSession();
 
@@ -319,7 +317,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return supabase.auth.signInWithOAuth({ 
       provider,
       options: {
-        redirectTo: `${window.location.origin}/landing`
+        redirectTo: `${window.location.origin}/landing`,
+        queryParams: {
+          // Add a flag to indicate this is an OAuth sign-in
+          oauth: 'true'
+        }
       }
     });
   };

@@ -40,7 +40,7 @@ export default function LandingPage() {
         setTimeoutReached(true);
         setLoadingMessage("Taking longer than expected...");
         forceRedirectToTutorial();
-      }, 3000); // Reduced from 5 seconds to 3 seconds
+      }, 2000); // Reduced from 3 seconds to 2 seconds for faster fallback
       
       return () => clearTimeout(timer);
     }

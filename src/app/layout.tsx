@@ -6,8 +6,9 @@ import { ThemeProvider } from "../components/ThemeProvider";
 import { AppClientWrapper } from "../components/AppClientWrapper";
 
 const inter = Inter({
-  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -47,9 +48,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${inter.variable} antialiased`}
-      >
+      <body className="antialiased">
         <ThemeProvider>
           <AuthProvider>
             <AppClientWrapper>{children}</AppClientWrapper>

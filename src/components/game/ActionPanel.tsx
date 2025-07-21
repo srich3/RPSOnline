@@ -13,6 +13,7 @@ interface ActionPanelProps {
   timeRemaining: number;
   currentPlayerId?: string;
   pendingActionsCount?: number;
+  className?: string;
 }
 
 const ALL_ACTIONS: { type: ActionType; label: string; minPoints: number }[] = [
@@ -33,6 +34,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({
   timeRemaining,
   currentPlayerId,
   pendingActionsCount = 0,
+  className,
 }) => {
   const [selectedAction, setSelectedAction] = useState<ActionType>('conquer');
   const [points, setPoints] = useState(2);
@@ -70,16 +72,13 @@ const ActionPanel: React.FC<ActionPanelProps> = ({
   const canAddAction = selectedSquare !== null && isMyTurn && points <= remainingPoints;
 
   return (
-    <div className="w-full max-w-md p-4 bg-white rounded shadow mt-6 flex flex-col items-center">
-      
-      
-
-      
+    <div className={`p-4 rounded-lg border border-[var(--color-dark-soft)] bg-[var(--color-bg)] ${className}`}>
+      <h2 className="text-xl font-bold mb-2 text-[var(--color-fg)]">Actions</h2>
       <div className="flex gap-2 mb-4">
         {availableActions.map((action) => (
           <button
             key={action.type}
-            className={`px-3 py-1 rounded border transition font-medium ${selectedAction === action.type ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg font-bold bg-[var(--color-dark-soft)] text-[var(--color-light)] hover:brightness-90 transition-colors ${selectedAction === action.type ? 'bg-[var(--color-blue)] text-[var(--color-light)]' : 'bg-[var(--color-gray-100)] text-[var(--color-gray-700)]'}`}
             onClick={() => handleActionChange(action.type)}
             disabled={!isMyTurn}
           >
@@ -89,10 +88,10 @@ const ActionPanel: React.FC<ActionPanelProps> = ({
       </div>
             {/* Selected Square Info */}
             {selectedSquare !== null ? (
-        <div className="mb-4 p-2 bg-blue-50 rounded text-center">
-          <p className="text-sm text-blue-700">Selected Square: {selectedSquare}</p>
+        <div className="mb-4 p-2 bg-[var(--color-blue-50)] rounded text-center">
+          <p className="text-sm text-[var(--color-blue-700)]">Selected Square: {selectedSquare}</p>
           {selectedSquareData && (
-            <div className="text-xs text-blue-600">
+            <div className="text-xs text-[var(--color-blue-600)]">
               <p>
                 {selectedSquareData.owner ? 
                   (selectedSquareData.owner === currentPlayerId ? 'Your square' : `Enemy square (${selectedSquareData.owner})`) : 
@@ -100,35 +99,35 @@ const ActionPanel: React.FC<ActionPanelProps> = ({
                 }
                 {selectedSquareData.is_defended && ' (Defended)'}
               </p>
-              <p className="mt-1 text-blue-500">
+              <p className="mt-1 text-[var(--color-blue-500)]">
                 All actions available for planning
               </p>
             </div>
           )}
         </div>
       ) : (
-        <div className="mb-4 p-2 bg-yellow-50 rounded text-center">
-          <p className="text-sm text-yellow-700">Select a square on the board first</p>
+        <div className="mb-4 p-2 bg-[var(--color-yellow-50)] rounded text-center">
+          <p className="text-sm text-[var(--color-yellow-700)]">Select a square on the board first</p>
         </div>
       )}
 
       <div className="flex items-center gap-2 mb-4">
 
         <button
-          className={`ml-2 px-3 py-1 rounded transition ${canAddAction ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+          className={`ml-2 px-3 py-1 rounded transition ${canAddAction ? 'bg-[var(--color-green-600)] text-[var(--color-light)] hover:bg-[var(--color-green-700)]' : 'bg-[var(--color-gray-300)] text-[var(--color-gray-500)] cursor-not-allowed'}`}
           onClick={handleAddAction}
           disabled={!canAddAction}
         >
           Add Action
         </button>
       </div>
-      <div className="mb-2 text-gray-600">Remaining Points: <span className="font-bold">{remainingPoints}</span></div>
-      <div className="mb-4 text-gray-600">Time Left: <span className="font-bold">{timeRemaining}s</span></div>
+      <div className="mb-2 text-[var(--color-gray-600)]">Remaining Points: <span className="font-bold">{remainingPoints}</span></div>
+      <div className="mb-4 text-[var(--color-gray-600)]">Time Left: <span className="font-bold">{timeRemaining}s</span></div>
       
       <div className="flex gap-2 w-full">
         {onClearAll && pendingActionsCount > 0 && (
           <button
-            className="flex-1 py-2 bg-gray-500 text-white rounded font-bold hover:bg-gray-600 transition"
+            className="flex-1 py-2 bg-[var(--color-gray-500)] text-[var(--color-light)] rounded font-bold hover:bg-[var(--color-gray-600)] transition"
             onClick={onClearAll}
             disabled={!isMyTurn}
           >
@@ -136,7 +135,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({
           </button>
         )}
         <button
-          className={`flex-1 py-2 rounded font-bold transition ${canSubmit ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+          className={`flex-1 py-2 rounded font-bold transition ${canSubmit ? 'bg-[var(--color-blue-600)] text-[var(--color-light)] hover:bg-[var(--color-blue-700)]' : 'bg-[var(--color-gray-300)] text-[var(--color-gray-500)] cursor-not-allowed'}`}
           onClick={onSubmit}
           disabled={!canSubmit}
         >

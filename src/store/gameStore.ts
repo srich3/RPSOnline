@@ -213,6 +213,9 @@ export const useGameStore = create<GameStore>()(
           moveCount: state.moveCount + pendingActions.length,
         }));
 
+        // Broadcast turn submission to other players
+        // This will be handled by the real-time game hook
+
         // If both players have submitted, resolve the turn
         if (newBoardState.player1_submitted && newBoardState.player2_submitted) {
           get().resolveTurn();

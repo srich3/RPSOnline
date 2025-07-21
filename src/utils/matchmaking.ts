@@ -243,7 +243,6 @@ export function subscribeToMatchmaking(
 export async function acceptMatch(gameId: string, userId: string): Promise<boolean> {
   try {
     console.log(`✅ Accepting match: ${gameId} by user: ${userId}`);
-    
     // First, verify the game exists and user is a participant
     const { data: game, error: fetchError } = await supabase
       .from('games')
@@ -267,16 +266,23 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
     }
 
     console.log('Game found:', game);
-    
-    // Update the appropriate acceptance field
-    const isPlayer1 = game.player1_id === userId;
-    const updateData = isPlayer1 
-      ? { player1_accepted: true, updated_at: new Date().toISOString() }
-      : { player2_accepted: true, updated_at: new Date().toISOString() };
+
+    // Only set the accepted flag for the player accepting
+    const update: any = {};
+    if (game.player1_id === userId) update.player1_accepted = true;
+    if (game.player2_id === userId) update.player2_accepted = true;
+
+    // If both players have accepted, set status to 'active'
+    const bothAccepted =
+      (game.player1_id === userId && game.player2_accepted) ||
+      (game.player2_id === userId && game.player1_accepted);
+    if (bothAccepted) {
+      update.status = 'active';
+    }
 
     const { data: updatedGame, error: updateError } = await supabase
       .from('games')
-      .update(updateData)
+      .update(update)
       .eq('id', gameId)
       .select()
       .single();
@@ -287,7 +293,6 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
     }
 
     console.log('Game acceptance updated:', updatedGame);
-
     console.log('✅ Match acceptance recorded successfully');
     return true;
   } catch (error) {
@@ -302,49 +307,19 @@ export async function acceptMatch(gameId: string, userId: string): Promise<boole
 export async function declineMatch(gameId: string, userId: string): Promise<boolean> {
   try {
     console.log(`❌ Declining match: ${gameId} by user: ${userId}`);
-    
-    // First, verify the game exists and user is a participant
-    const { data: game, error: fetchError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
 
-    if (fetchError) {
-      console.error('Error fetching game:', fetchError);
+    // Call the cancel_game database function to handle all business logic and validation
+    const { data, error } = await supabase.rpc('cancel_game', {
+      game_id: gameId,
+      player_id: userId
+    });
+
+    if (error) {
+      console.error('Error calling cancel_game function:', error);
       return false;
     }
 
-    if (!game) {
-      console.error('Game not found:', gameId);
-      return false;
-    }
-
-    if (game.player1_id !== userId && game.player2_id !== userId) {
-      console.error('User is not a participant in this game:', userId, gameId);
-      return false;
-    }
-
-    console.log('Game found:', game);
-    
-    // Use the new cancel_game function instead of deleting
-    const { data: result, error: cancelError } = await supabase
-      .rpc('cancel_game', {
-        game_id: gameId,
-        player_id: userId
-      });
-
-    if (cancelError) {
-      console.error('Error canceling game:', cancelError);
-      return false;
-    }
-
-    if (!result) {
-      console.error('Failed to cancel game');
-      return false;
-    }
-
-    console.log('Game canceled successfully');
+    console.log('Game canceled successfully via cancel_game function');
 
     // Remove the declining player from the queue
     const { error: queueError } = await supabase
@@ -519,19 +494,31 @@ export async function forfeitGame(gameId: string, userId: string): Promise<boole
   try {
     console.log(`🏳️ Forfeiting game: ${gameId} by user: ${userId}`);
     
-    const { data: result, error } = await supabase
-      .rpc('forfeit_game', {
-        game_id: gameId,
-        player_id: userId
-      });
+    // Get the game to find the other player
+    const { data: game, error: fetchError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
 
-    if (error) {
-      console.error('Error forfeiting game:', error);
+    if (fetchError || !game) {
+      console.error('Error fetching game for forfeit:', fetchError);
       return false;
     }
 
-    if (!result) {
-      console.error('Failed to forfeit game');
+    // Set the other player as winner
+    const winnerId = game.player1_id === userId ? game.player2_id : game.player1_id;
+    
+    const { error } = await supabase
+      .from('games')
+      .update({ 
+        status: 'finished',
+        winner_id: winnerId
+      })
+      .eq('id', gameId);
+
+    if (error) {
+      console.error('Error forfeiting game:', error);
       return false;
     }
 
@@ -541,183 +528,4 @@ export async function forfeitGame(gameId: string, userId: string): Promise<boole
     console.error('Error forfeiting game:', error);
     return false;
   }
-}
-
-/**
- * Get achievement statistics for a player (from users table)
- */
-export async function getPlayerAchievementStats(userId: string): Promise<{
-  total_games_played: number;
-  games_won: number;
-  games_lost: number;
-  games_forfeited: number;
-  games_canceled: number;
-  opponents_forfeited: number;
-  opponents_canceled: number;
-} | null> {
-  try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select(`
-        total_games_played,
-        games_won,
-        games_lost,
-        games_forfeited,
-        games_canceled,
-        opponents_forfeited,
-        opponents_canceled
-      `)
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('Error getting user achievement stats:', error);
-      return null;
-    }
-
-    if (!user) {
-      return null;
-    }
-
-    return {
-      total_games_played: user.total_games_played || 0,
-      games_won: user.games_won || 0,
-      games_lost: user.games_lost || 0,
-      games_forfeited: user.games_forfeited || 0,
-      games_canceled: user.games_canceled || 0,
-      opponents_forfeited: user.opponents_forfeited || 0,
-      opponents_canceled: user.opponents_canceled || 0
-    };
-  } catch (error) {
-    console.error('Error in getPlayerAchievementStats:', error);
-    return null;
-  }
-}
-
-/**
- * Get user's earned achievements
- */
-export async function getUserAchievements(userId: string): Promise<{
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: string;
-  reward_type: string | null;
-  reward_value: string | null;
-  earned_at: string;
-}[]> {
-  try {
-    const { data, error } = await supabase
-      .from('user_achievements')
-      .select(`
-        achievement_id,
-        earned_at,
-        achievements (
-          id,
-          name,
-          description,
-          icon,
-          category,
-          reward_type,
-          reward_value
-        )
-      `)
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error getting user achievements:', error);
-      return [];
-    }
-
-    if (!data) {
-      return [];
-    }
-
-    return data.map(item => ({
-      id: item.achievements.id,
-      name: item.achievements.name,
-      description: item.achievements.description,
-      icon: item.achievements.icon,
-      category: item.achievements.category,
-      reward_type: item.achievements.reward_type,
-      reward_value: item.achievements.reward_value,
-      earned_at: item.earned_at
-    }));
-  } catch (error) {
-    console.error('Error in getUserAchievements:', error);
-    return [];
-  }
-}
-
-/**
- * Get all available achievements
- */
-export async function getAllAchievements(): Promise<{
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: string;
-  requirement_type: string;
-  requirement_value: number;
-  reward_type: string | null;
-  reward_value: string | null;
-}[]> {
-  try {
-    const { data, error } = await supabase
-      .from('achievements')
-      .select('*')
-      .order('requirement_value', { ascending: true });
-
-    if (error) {
-      console.error('Error getting all achievements:', error);
-      return [];
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error in getAllAchievements:', error);
-    return [];
-  }
-}
-
-/**
- * Check if a player has earned specific achievements
- */
-export async function checkPlayerAchievements(userId: string): Promise<{
-  intimidatingPresence: boolean; // Cause 100 players to cancel
-  overwhelming: boolean; // Cause 100 players to forfeit
-  quickRetreat: boolean; // Forfeit over 100 matches
-  veteran: boolean; // Play 1000 games
-  champion: boolean; // Win 500 games
-  unstoppable: boolean; // Win 1000 games
-  sportsman: boolean; // Never forfeit (min 50 games)
-}> {
-  const stats = await getPlayerAchievementStats(userId);
-  const userAchievements = await getUserAchievements(userId);
-  
-  if (!stats) {
-    return {
-      intimidatingPresence: false,
-      overwhelming: false,
-      quickRetreat: false,
-      veteran: false,
-      champion: false,
-      unstoppable: false,
-      sportsman: false
-    };
-  }
-
-  const earnedAchievementNames = userAchievements.map(a => a.name);
-
-  return {
-    intimidatingPresence: earnedAchievementNames.includes('Intimidating Presence'),
-    overwhelming: earnedAchievementNames.includes('Overwhelming'),
-    quickRetreat: earnedAchievementNames.includes('Quick Retreat'),
-    veteran: earnedAchievementNames.includes('Veteran Player'),
-    champion: earnedAchievementNames.includes('Champion'),
-    unstoppable: earnedAchievementNames.includes('Unstoppable'),
-    sportsman: earnedAchievementNames.includes('Sportsman')
-  };
 } 

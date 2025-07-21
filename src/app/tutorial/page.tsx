@@ -3,6 +3,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { useTheme } from "../../components/ThemeProvider";
 
 export default function TutorialPage() {
   const { user, profile, loading } = useAuth();
@@ -14,6 +15,7 @@ export default function TutorialPage() {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(0); // 0 = username, 1 = tutorial
   const [finishing, setFinishing] = useState(false);
+  const { theme } = useTheme();
 
   // If already complete, redirect
   if (!loading && profile && profile.tutorial_complete) {
@@ -79,14 +81,14 @@ export default function TutorialPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-white">Welcome to Tacto!</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[var(--color-bg)]">
+      <div className="rounded-lg shadow-xl p-8 w-full max-w-md border border-[var(--color-dark-soft)] bg-[var(--color-bg)]">
+        <h1 className="text-3xl font-bold mb-6 text-center text-[var(--color-fg)]">Welcome to Tacto!</h1>
         {loading || !profile ? (
-          <div className="text-center text-gray-500">Loading...</div>
+          <div className="text-center text-[color-mix(in_srgb,var(--color-fg)_50%,var(--color-bg)_50%)]">Loading...</div>
         ) : needsUsername && step === 0 ? (
           <>
-            <h2 className="text-xl font-semibold mb-4 text-center">Choose a Username</h2>
+            <h2 className="text-xl font-bold mb-4 text-center text-[var(--color-fg)]">Choose a Username</h2>
             <div className="space-y-4">
               <input
                 type="text"
@@ -97,7 +99,7 @@ export default function TutorialPage() {
                   setUsernameAvailable(false);
                   setUsernameError("");
                 }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[var(--color-dark-soft)] focus:border-transparent border-[var(--color-dark-soft)] bg-[var(--color-bg)] text-[var(--color-fg)]"
                 placeholder="Enter a username"
                 minLength={3}
                 maxLength={20}
@@ -107,7 +109,7 @@ export default function TutorialPage() {
                 <button
                   type="button"
                   onClick={checkUsername}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                  className="font-bold py-2 px-4 rounded-lg transition-colors duration-200 bg-[var(--color-dark-soft)] text-[var(--color-light)] hover:brightness-90"
                   disabled={username.length < 3}
                 >
                   Check Username
@@ -115,7 +117,7 @@ export default function TutorialPage() {
                 <button
                   type="button"
                   onClick={saveUsername}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50"
+                  className="font-bold py-2 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 bg-[var(--color-dark-soft)] text-[var(--color-light)] hover:brightness-90"
                   disabled={!usernameChecked || !usernameAvailable || saving}
                 >
                   {saving ? "Saving..." : "Save Username"}
@@ -131,15 +133,15 @@ export default function TutorialPage() {
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold mb-4 text-center">Tutorial</h2>
-            <div className="mb-6 text-gray-700 dark:text-gray-200 text-center">
+            <h2 className="text-xl font-bold mb-4 text-center text-[var(--color-fg)]">Tutorial</h2>
+            <div className="mb-6 text-center text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] font-light">
               <p>This is a placeholder for the interactive tutorial. Here you will learn how to play Tacto!</p>
               <p className="mt-2">(You can expand this with real steps later.)</p>
             </div>
             <button
               type="button"
               onClick={finishTutorial}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+              className="w-full font-bold py-2 px-4 rounded-lg transition-colors duration-200 bg-[var(--color-dark-soft)] text-[var(--color-light)] hover:brightness-90"
               disabled={finishing}
             >
               {finishing ? "Finishing..." : "Finish Tutorial"}

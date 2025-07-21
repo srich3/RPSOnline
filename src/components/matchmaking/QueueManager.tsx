@@ -16,7 +16,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     queuePosition,
     estimatedWaitTime,
     matchFound,
-    matchFoundData,
+    matchFoundData, // <-- add this
     error,
     loading,
     isUnderDeclinePenalty,
@@ -25,6 +25,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     leaveQueue,
     acceptMatch,
     declineMatch,
+    setError,
   } = useMatchmaking({
     autoAcceptMatch: false, // Let user manually accept
     maxWaitTime: 120, // 2 minutes
@@ -67,16 +68,16 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
   // Get opponent info
   const getOpponentInfo = () => {
     if (!matchFound || !user) return null;
-    
+    // Prefer matchFoundData for usernames if available
+    let opponentUsername;
     const isPlayer1 = matchFound.player1_id === user.id;
-    const opponentId = isPlayer1 ? matchFound.player2_id : matchFound.player1_id;
-    
-    if (!opponentId) return null;
-    
-    // For now, show the opponent ID - we'll fetch usernames separately
+    if (isPlayer1) {
+      opponentUsername = matchFoundData?.player2_username;
+    } else {
+      opponentUsername = matchFoundData?.player1_username;
+    }
     return {
-      id: opponentId,
-      username: `Player ${opponentId.slice(0, 8)}...`,
+      username: opponentUsername || 'Unknown Player',
       isPlayer1
     };
   };
@@ -139,76 +140,48 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
     return `${seconds}s`;
   };
 
-  // Add state for opponent username
-  const [opponentUsername, setOpponentUsername] = useState<string | null>(null);
-  const [loadingOpponent, setLoadingOpponent] = useState(false);
+  // Add a helper to detect opponent decline error
+  const opponentDeclined = error && error.toLowerCase().includes('opponent declined');
 
-  // Fetch opponent username when matchFound changes
+  // Automatically clear the error after a short delay if opponent declined
   useEffect(() => {
-    const fetchOpponentUsername = async () => {
-      if (!matchFound || !user) {
-        setOpponentUsername(null);
-        return;
-      }
-      const isPlayer1 = matchFound.player1_id === user.id;
-      const opponentId = isPlayer1 ? matchFound.player2_id : matchFound.player1_id;
-      if (!opponentId) {
-        setOpponentUsername(null);
-        return;
-      }
-      setLoadingOpponent(true);
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('username')
-          .eq('id', opponentId)
-          .single();
-        if (error || !data) {
-          setOpponentUsername('Unknown');
-        } else {
-          setOpponentUsername(data.username);
-        }
-      } catch (err) {
-        setOpponentUsername('Unknown');
-      } finally {
-        setLoadingOpponent(false);
-      }
-    };
-    fetchOpponentUsername();
-  }, [matchFound, user]);
-
+    if (opponentDeclined) {
+      const timer = setTimeout(() => {
+        setError(''); // Clear the error to return to Find Match state
+      }, 2000); // 2 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [opponentDeclined, setError]);
 
   if (!user) {
     return (
-      <div className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg border border-gray-700 ${className}`}>
+      <div className={`rounded-xl p-6 shadow-lg border bg-[var(--color-bg)] border-[var(--color-dark-soft)] ${className}`}>
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">Login Required</h3>
-          <p className="text-gray-400">Please log in to join matchmaking</p>
+          <AlertCircle className="w-12 h-12 text-[color-mix(in_srgb,var(--color-fg)_40%,var(--color-bg)_60%)] mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-[var(--color-fg)] mb-2">Login Required</h3>
+          <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)]">Please log in to join matchmaking</p>
         </div>
       </div>
     );
   }
 
   return (
-    <>
-      <div className={`bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg border border-gray-700 ${className}`}>
+    <div className={`queue-manager ${className}`}>
+      <div className={`rounded-xl p-6 shadow-lg border bg-[var(--color-bg)] border-[var(--color-dark-soft)] ${className}`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-white flex items-center">
+          <h3 className="text-lg font-semibold text-[var(--color-fg)] flex items-center">
             <Trophy className="w-5 h-5 mr-2 text-yellow-400" />
             Quick Play
           </h3>
-          
           <div className="flex items-center space-x-2">
             {profile && (
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)]">
                 Rating: {profile.rating}
               </div>
             )}
           </div>
         </div>
-
         {/* Queue Status */}
         <AnimatePresence mode="wait">
           {loading && !isInQueue && !matchFound ? (
@@ -222,13 +195,13 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               <div className="text-center">
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="w-16 h-16 text-blue-400 mx-auto mb-4"
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  className="w-16 h-16 text-[var(--color-accent)] mx-auto mb-4"
                 >
                   <Clock className="w-full h-full" />
                 </motion.div>
-                <h4 className="text-white font-medium mb-2">Restoring Queue</h4>
-                <p className="text-gray-400 text-sm mb-6">
+                <h4 className="text-[var(--color-fg)] font-medium mb-2">Restoring Queue</h4>
+                <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm mb-6">
                   Checking if you were in a queue before...
                 </p>
               </div>
@@ -249,118 +222,99 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 >
                   <Trophy className="w-full h-full" />
                 </motion.div>
-                <h4 className="text-white font-medium mb-2">Match Found!</h4>
-                <p className="text-gray-400 text-sm mb-4">
-                  {loadingOpponent
-                    ? 'Loading opponent...'
-                    : opponentUsername
-                      ? `${opponentUsername} is ready to challenge you!`
-                      : 'A player is ready to challenge you!'}
+                <h4 className="text-[var(--color-fg)] font-medium mb-2">Match Found!</h4>
+                <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm mb-4">
+                  A player is ready to challenge you!
                 </p>
+                {/* Opponent Username Display */}
+                {opponent && (
+                  <div className="flex items-center justify-center space-x-2 mb-2">
+                    <User className="w-5 h-5 text-[var(--color-fg)]" />
+                    <span className="text-[var(--color-fg)] font-semibold">{opponent.username}</span>
+                  </div>
+                )}
               </div>
-
               {/* Acceptance Status */}
               {acceptanceStatus && (
-                <motion.div 
-                  className="bg-gray-700/50 rounded-lg p-4"
-                  initial={{ scale: 0.95, opacity: 0.8 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
+                <div className="bg-[var(--color-bg-soft)] rounded-lg p-4">
                   <div className="text-center space-y-3">
                     {acceptanceStatus.bothAccepted ? (
                       <>
-                        <motion.div 
-                          className="flex items-center justify-center space-x-2"
-                          initial={{ scale: 0.8 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
+                        <div className="flex items-center justify-center space-x-2">
                           <Check className="w-5 h-5 text-green-400" />
                           <span className="text-green-400 font-medium">Both Players Accepted!</span>
-                        </motion.div>
-                        <motion.p 
-                          className="text-gray-400 text-sm"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.2 }}
-                        >
+                        </div>
+                        <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           Starting game...
-                        </motion.p>
+                        </p>
                       </>
                     ) : acceptanceStatus.hasAccepted ? (
                       <>
-                        <motion.div 
-                          className="flex items-center justify-center space-x-2"
-                          initial={{ scale: 0.8 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Clock className="w-5 h-5 text-orange-400" />
-                          <span className="text-orange-400 font-medium">Waiting on Opponent</span>
-                        </motion.div>
-                        <motion.p 
-                          className="text-gray-400 text-sm"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.2 }}
-                        >
+                        <div className="flex items-center justify-center space-x-2">
+                          <Clock className="w-5 h-5 text-[var(--color-fg)]" />
+                          <span className="text-[var(--color-fg)] font-medium">Waiting on Opponent</span>
+                        </div>
+                        <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           You've accepted. Waiting for the other player...
-                        </motion.p>
+                        </p>
+                        {/* Show opponent username */}
+                        {opponent && (
+                          <div className="text-xs text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] mt-1">
+                            Waiting for <span className="font-semibold">{opponent.username}</span> to accept...
+                          </div>
+                        )}
                       </>
                     ) : acceptanceStatus.opponentAccepted ? (
                       <>
-                        <motion.div 
-                          className="flex items-center justify-center space-x-2"
-                          initial={{ scale: 0.8 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
+                        <div className="flex items-center justify-center space-x-2">
                           <Check className="w-5 h-5 text-green-400" />
                           <span className="text-green-400 font-medium">Opponent Has Accepted</span>
-                        </motion.div>
-                        <motion.p 
-                          className="text-gray-400 text-sm"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.2 }}
-                        >
+                        </div>
+                        <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           The other player is ready. Please accept to start!
-                        </motion.p>
+                        </p>
+                        {/* Show opponent username */}
+                        {opponent && (
+                          <div className="text-xs text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] mt-1">
+                            <span className="font-semibold">{opponent.username}</span> is ready!
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
                         <div className="flex items-center justify-center space-x-2">
-                          <Clock className="w-5 h-5 text-orange-400" />
-                          <span className="text-orange-400 font-medium">Waiting for Acceptance</span>
+                          <Clock className="w-5 h-5 text-[var(--color-fg)]" />
+                          <span className="text-[var(--color-fg)] font-medium">Waiting on Opponent</span>
                         </div>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           Both players need to accept to start the game
                         </p>
+                        {/* Show opponent username */}
+                        {opponent && (
+                          <div className="text-xs text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] mt-1">
+                            Waiting for <span className="font-semibold">{opponent.username}</span> to accept...
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
-                </motion.div>
+                </div>
               )}
-
               {/* Countdown Timer - Only show if current player hasn't accepted yet */}
               {acceptanceStatus && !acceptanceStatus.hasAccepted && (
-                <div className="bg-gray-700/50 rounded-lg p-4">
+                <div className="bg-[var(--color-bg-soft)] rounded-lg p-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <Clock className="w-5 h-5 text-orange-400" />
-                      <span className="text-white font-medium">Time to Accept</span>
+                      <span className="text-[var(--color-fg)] font-medium">Time to Accept</span>
                     </div>
-                    <div className={`text-2xl font-bold ${timeLeft <= 10 ? 'text-red-400' : 'text-green-400'}`}>
-                      {formatTimeLeft(timeLeft)}
-                    </div>
-                    <p className="text-gray-400 text-sm mt-2">
+                    <div className={`text-2xl font-bold ${timeLeft <= 10 ? 'text-red-400' : 'text-green-400'}`}>{formatTimeLeft(timeLeft)}</div>
+                    <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm mt-2">
                       Accept quickly or the match will be declined automatically
                     </p>
                   </div>
                 </div>
               )}
-
               {/* Accept/Decline Buttons - Only show if player hasn't accepted yet */}
               {acceptanceStatus && !acceptanceStatus.hasAccepted && (
                 <div className="flex space-x-3">
@@ -369,18 +323,25 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                     whileTap={{ scale: 0.98 }}
                     onClick={handleAcceptMatch}
                     disabled={loading}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'var(--color-light-soft)',
+                      color: 'var(--color-dark)',
+                    }}
                   >
-                    <Check className="w-5 h-5" />
+                    <Check className="w-5 h-5 " />
                     <span>Accept</span>
                   </motion.button>
-                  
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleDeclineMatch}
                     disabled={loading}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: 'var(--color-dark-soft)',
+                      color: 'var(--color-light)',
+                    }}
                   >
                     <X className="w-5 h-5" />
                     <span>Decline</span>
@@ -397,24 +358,23 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               className="space-y-4"
             >
               <div className="text-center">
-                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h4 className="text-white font-medium mb-2">Find an Opponent</h4>
-                <p className="text-gray-400 text-sm mb-6">
+                <Users className="w-16 h-16 text-[color-mix(in_srgb,var(--color-fg)_40%,var(--color-bg)_60%)] mx-auto mb-4" />
+                <h4 className="text-[var(--color-fg)] font-medium mb-2">Find an Opponent</h4>
+                <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm mb-6">
                   Join the queue to find players with similar skill level
                 </p>
               </div>
-
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleJoinQueue}
                 disabled={loading || isUnderDeclinePenalty}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-[var(--color-dark-soft)] text-[var(--color-light)] hover:brightness-90 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                   >
                     <Clock className="w-5 h-5" />
                   </motion.div>
@@ -422,9 +382,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                   <Play className="w-5 h-5" />
                 )}
                 <span>
-                  {loading ? 'Joining...' : 
-                   isUnderDeclinePenalty ? `Wait ${remainingPenaltyTime}s` : 
-                   'Find Match'}
+                  {loading ? 'Joining...' : isUnderDeclinePenalty ? `Wait ${remainingPenaltyTime}s` : 'Find Match'}
                 </span>
               </motion.button>
             </motion.div>
@@ -439,41 +397,34 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               <div className="text-center">
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="w-16 h-16 text-blue-400 mx-auto mb-4"
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  className="w-16 h-16 text-[var(--color-accent)] mx-auto mb-4"
                 >
                   <Clock className="w-full h-full" />
                 </motion.div>
-                <h4 className="text-white font-medium mb-2">Searching for Opponent</h4>
-                <p className="text-gray-400 text-sm mb-4">
+                <h4 className="text-[var(--color-fg)] font-medium mb-2">Searching for Opponent</h4>
+                <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm mb-4">
                   Looking for players with similar skill level...
                 </p>
               </div>
-
               {/* Queue Info */}
-              <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
+              <div className="bg-[var(--color-bg)] rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Position in queue:</span>
-                  <span className="text-white font-medium">
-                    {queuePosition || 'Calculating...'}
-                  </span>
+                  <span className="text-[var(--color-fg)] text-sm">Position in queue:</span>
+                  <span className="text-[var(--color-fg)] font-medium">{queuePosition || 'Calculating...'}</span>
                 </div>
-                
                 {estimatedWaitTime !== null && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400 text-sm">Wait time:</span>
-                    <span className="text-white font-medium">
-                      {formatWaitTime(estimatedWaitTime)}
-                    </span>
+                    <span className="text-[color-mix(in_srgb,var(--color-fg)_50%,var(--color-bg-soft)_50%)] text-sm">Wait time:</span>
+                    <span className="text-[var(--color-fg)] font-medium">{formatWaitTime(estimatedWaitTime)}</span>
                   </div>
                 )}
               </div>
-
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={leaveQueue}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
+                className="w-full bg-[var(--color-bg-soft)] text-[var(--color-fg)] hover:brightness-90 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
               >
                 <X className="w-5 h-5" />
                 <span>Cancel Search</span>
@@ -481,7 +432,6 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
             </motion.div>
           ) : null}
         </AnimatePresence>
-
         {/* Error Display */}
         <AnimatePresence>
           {error && (
@@ -489,7 +439,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg"
+              className="mt-4 p-3 bg-[color-mix(in_srgb,red_20%,var(--color-bg)_80%)] border border-red-700 rounded-lg"
             >
               <div className="flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 text-red-400" />
@@ -498,7 +448,6 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
             </motion.div>
           )}
         </AnimatePresence>
-
         {/* Decline Penalty Display */}
         <AnimatePresence>
           {isUnderDeclinePenalty && (
@@ -506,18 +455,16 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="mt-4 p-3 bg-orange-900/50 border border-orange-700 rounded-lg"
+              className="mt-4 p-3 bg-[color-mix(in_srgb,orange_20%,var(--color-bg)_80%)] border border-orange-700 rounded-lg"
             >
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-orange-400" />
-                <span className="text-orange-400 text-sm">
-                  Decline penalty: {remainingPenaltyTime}s remaining
-                </span>
+                <span className="text-orange-400 text-sm">Decline penalty: {remainingPenaltyTime}s remaining</span>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </>
+    </div>
   );
 } 

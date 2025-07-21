@@ -24,7 +24,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   });
 
   return (
-    <div className="grid grid-cols-3 gap-2 w-full max-w-xs mx-auto">
+    <div className="grid grid-cols-3 gap-2 bg-[var(--color-bg)] p-4 rounded-lg border border-[var(--color-dark-soft)]">
       {boardState.squares.map((square) => {
         const squarePendingActions = pendingActions.filter(
           action => action.target_square === square.id
@@ -40,6 +40,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             isSelected={selectedSquare === square.id}
             pendingActions={squarePendingActions}
             onClick={() => onSquareClick(square.id)}
+            className="bg-[var(--color-light-soft)] border border-[var(--color-dark-soft)] text-[var(--color-fg)] hover:bg-[var(--color-dark-soft)] hover:text-[var(--color-light)] transition-colors duration-150"
           />
         );
       })}

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '../types/database';
+import type { Database } from '../types/database.ts';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -60,11 +60,11 @@ export const signInWithProvider = (provider: 'google' | 'github') => {
 };
 
 // User profile helpers
-export const createUserProfile = async (userData: Database['public']['Tables']['users']['Insert']) => {
+export const createUserProfile = (userData: Database['public']['Tables']['users']['Insert']) => {
   return supabase.from('users').insert([userData]);
 };
 
-export const getUserById = async (userId: string) => {
+export const getUserById = (userId: string) => {
   return supabase
     .from('users')
     .select('*')
@@ -149,7 +149,7 @@ const calculateNewRating = (currentRating: number, isWin: boolean): number => {
 };
 
 // Game helpers
-export const createGame = async (gameData: Database['public']['Tables']['games']['Insert']) => {
+export const createGame = (gameData: Database['public']['Tables']['games']['Insert']) => {
   return supabase
     .from('games')
     .insert([gameData])
@@ -157,7 +157,7 @@ export const createGame = async (gameData: Database['public']['Tables']['games']
     .single();
 };
 
-export const getGamesByPlayer = async (playerId: string) => {
+export const getGamesByPlayer = (playerId: string) => {
   return supabase
     .from('games')
     .select(`
@@ -169,7 +169,7 @@ export const getGamesByPlayer = async (playerId: string) => {
     .order('created_at', { ascending: false });
 };
 
-export const getGameById = async (gameId: string) => {
+export const getGameById = (gameId: string) => {
   return supabase
     .from('games')
     .select(`
@@ -182,7 +182,7 @@ export const getGameById = async (gameId: string) => {
     .single();
 };
 
-export const updateGame = async (gameId: string, updates: Database['public']['Tables']['games']['Update']) => {
+export const updateGame = (gameId: string, updates: Database['public']['Tables']['games']['Update']) => {
   return supabase
     .from('games')
     .update(updates)
@@ -211,7 +211,7 @@ export const finishGame = async (gameId: string, winnerId: string) => {
 };
 
 // Game moves helpers
-export const addGameMove = async (moveData: Database['public']['Tables']['game_moves']['Insert']) => {
+export const addGameMove = (moveData: Database['public']['Tables']['game_moves']['Insert']) => {
   return supabase
     .from('game_moves')
     .insert([moveData])
@@ -219,7 +219,7 @@ export const addGameMove = async (moveData: Database['public']['Tables']['game_m
     .single();
 };
 
-export const getGameMoves = async (gameId: string) => {
+export const getGameMoves = (gameId: string) => {
   return supabase
     .from('game_moves')
     .select('*')
@@ -227,7 +227,7 @@ export const getGameMoves = async (gameId: string) => {
     .order('turn_number', { ascending: true });
 };
 
-export const getMovesByTurn = async (gameId: string, turnNumber: number) => {
+export const getMovesByTurn = (gameId: string, turnNumber: number) => {
   return supabase
     .from('game_moves')
     .select('*')
@@ -236,7 +236,7 @@ export const getMovesByTurn = async (gameId: string, turnNumber: number) => {
 };
 
 // Leaderboard helpers
-export const getLeaderboard = async (limit: number = 10) => {
+export const getLeaderboard = (limit: number = 10) => {
   return supabase
     .from('users')
     .select('id, username, wins, losses, rating')
@@ -257,7 +257,7 @@ export const getUserRank = async (userId: string) => {
 };
 
 // Search and discovery helpers
-export const searchUsers = async (query: string, limit: number = 10) => {
+export const searchUsers = (query: string, limit: number = 10) => {
   return supabase
     .from('users')
     .select('id, username, wins, losses, rating')
@@ -266,7 +266,7 @@ export const searchUsers = async (query: string, limit: number = 10) => {
     .limit(limit);
 };
 
-export const getActiveGames = async () => {
+export const getActiveGames = () => {
   return supabase
     .from('games')
     .select(`
@@ -278,7 +278,7 @@ export const getActiveGames = async () => {
     .order('created_at', { ascending: false });
 };
 
-export const getWaitingGames = async () => {
+export const getWaitingGames = () => {
   return supabase
     .from('games')
     .select(`
@@ -286,12 +286,11 @@ export const getWaitingGames = async () => {
       player1:users!games_player1_id_fkey(username)
     `)
     .eq('status', 'waiting')
-            .in('status', ['waiting', 'active']) // Only include games that haven't been completed/canceled
     .order('created_at', { ascending: false });
 };
 
 // Queue helpers
-export const joinQueue = async (userId: string) => {
+export const joinQueue = (userId: string) => {
   return supabase
     .from('game_queue')
     .insert([{ user_id: userId }])
@@ -299,14 +298,14 @@ export const joinQueue = async (userId: string) => {
     .single();
 };
 
-export const leaveQueue = async (userId: string) => {
+export const leaveQueue = (userId: string) => {
   return supabase
     .from('game_queue')
     .delete()
     .eq('user_id', userId);
 };
 
-export const getQueueStatus = async () => {
+export const getQueueStatus = () => {
   return supabase
     .from('game_queue')
     .select(`
@@ -342,6 +341,8 @@ export const findMatch = async (userId: string) => {
     // Create new waiting game
     const { data: newGame, error: createError } = await createGame({
       player1_id: userId,
+      player2_id: '00000000-0000-0000-0000-000000000000', // Placeholder for waiting game
+      current_player: userId,
       status: 'waiting'
     });
     

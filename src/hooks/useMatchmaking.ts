@@ -24,7 +24,7 @@ interface MatchmakingState {
   estimatedWaitTime: number | null;
   matchFound: Game | null;
   matchFoundData: MatchFoundData | null; // Store additional match data including usernames
-  error: string | null;
+  error: string;
   loading: boolean;
   declinePenaltyUntil: number | null; // Timestamp when decline penalty expires
 }
@@ -48,6 +48,22 @@ interface QueueStorageState {
   estimatedWaitTime: number;
 }
 
+// Helper to fetch usernames for both players
+type UsernameMap = { [userId: string]: string };
+const fetchUsernames = async (player1Id: string, player2Id: string): Promise<UsernameMap> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username')
+    .in('id', [player1Id, player2Id]);
+  if (error || !data) return {};
+  return Object.fromEntries(data.map((u: any) => [u.id, u.username || `Player ${u.id.slice(0, 8)}...`]));
+};
+
+// Type guard for string
+function isString(val: unknown): val is string {
+  return typeof val === 'string';
+}
+
 export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
   const { user, profile } = useAuth();
   const { startNewGame } = useGameStore();
@@ -64,7 +80,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     estimatedWaitTime: null,
     matchFound: null,
     matchFoundData: null,
-    error: null,
+    error: '',
     loading: false,
     declinePenaltyUntil: null,
   });
@@ -191,7 +207,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               matchFound: recentGame[0],
               isInQueue: false,
               loading: false,
-              error: null,
+              error: '',
             }));
             return;
           }
@@ -219,7 +235,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: 1,
           estimatedWaitTime: waitTime,
           loading: false,
-          error: null,
+          error: '',
         }));
 
       console.log('✅ Queue state restored successfully');
@@ -276,7 +292,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
 
     console.log('🎯 Joining matchmaking queue for user:', user.id);
-    setState(prev => ({ ...prev, loading: true, error: null }));
+    setState(prev => ({ ...prev, loading: true, error: '' }));
 
     try {
       // Check authentication status
@@ -311,7 +327,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             loading: false,
             queuePosition: null,
             estimatedWaitTime: null,
-            error: null,
+            error: '',
           }));
           return;
         } else if (existingGame.status === 'active') {
@@ -328,7 +344,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             matchFound: null,
             queuePosition: null,
             estimatedWaitTime: null,
-            error: null,
+            error: '',
           }));
           return;
         }
@@ -338,10 +354,14 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       console.log('📋 No existing game found, joining queue...');
 
       // Join the matchmaking queue using the new real-time approach
+      if (!user || !user.id || !profile || !profile.username || profile.rating == null) return; // Ensure all required fields are present
+      const userId = user.id;
+      const username = profile.username;
+      const rating = profile.rating;
       const success = await joinMatchmakingQueue(
-        user.id,
-        profile.username,
-        profile.rating
+        userId,
+        username,
+        rating
       );
 
       if (success) {
@@ -359,9 +379,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         } else {
           // Save queue state to localStorage
           const queueState: QueueStorageState = {
-            userId: user.id,
-            username: profile.username,
-            rating: profile.rating,
+            userId: userId,
+            username: username,
+            rating: rating,
             joinedAt: Date.now(),
             estimatedWaitTime: 0,
           };
@@ -372,6 +392,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             isInQueue: true, 
             loading: false,
             queuePosition: 1,
+            error: '',
           }));
 
           // Start wait time tracking
@@ -412,6 +433,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     setState(prev => ({ ...prev, loading: true }));
 
     try {
+      if (!user?.id) return; // Ensure user.id is a string
       const success = await leaveMatchmakingQueue(user.id);
 
       if (success) {
@@ -426,7 +448,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           loading: false,
           queuePosition: null,
           estimatedWaitTime: null,
-          error: null,
+          error: '',
         }));
 
         // Clear timeouts
@@ -461,12 +483,28 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       if (success) {
         console.log('✅ Match acceptance recorded, waiting for other player...');
         
-        // Don't start the game yet - wait for database notification
-        // Just show that we've accepted
+        // Check if both players have accepted by calling the Edge Function
+        // This will trigger the 5-second delay and game start
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          throw new Error('No active session');
+        }
+
+        const { data, error } = await supabase.functions.invoke('delayed-game-start', {
+          body: { gameId },
+        });
+
+        if (error) {
+          console.error('❌ Error calling delayed-game-start function:', error);
+          // Don't throw here - the database trigger might still work
+        } else {
+          console.log('✅ Delayed game start function called successfully:', data);
+        }
+        
         setState(prev => ({ 
           ...prev, 
           loading: false,
-          error: null,
+          error: '',
         }));
       } else {
         throw new Error('Failed to accept match');
@@ -494,11 +532,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
 
       if (success) {
         console.log('❌ Match declined');
-        
-        // Apply decline penalty
+        // Apply decline penalty only to the declining player
         applyDeclinePenalty();
-        
-        // Clear match state and queue state
+        // Clear match state and queue state for the declining player
         clearQueueState();
         setState(prev => ({ 
           ...prev, 
@@ -507,14 +543,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           queuePosition: null,
           estimatedWaitTime: null,
           loading: false,
+          error: '',
         }));
-
         // Update refs
         matchFoundRef.current = null;
         isInQueueRef.current = false;
-
-        // Don't rejoin queue - the declining player should stay out
-        // The other player will be notified and can rejoin if they want
       } else {
         throw new Error('Failed to decline match');
       }
@@ -569,7 +602,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
           matchFound: recentGame,
           isInQueue: false,
           loading: false,
-          error: null,
+          error: '',
         }));
         // Don't return early - we still need the subscription for updates!
         console.log('📡 Setting up subscription for existing game updates...');
@@ -595,67 +628,77 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       .on(
         'broadcast',
         { event: 'match_found' },
-        (payload) => {
+        async (payload) => {
           console.log('🔍 Match found broadcast:', payload);
-          
           if (!user?.id) return;
-          
-          // Use the correct payload structure - back to original format
           const game = payload.payload?.record as Game;
           if (!game) return;
-          
-          // Check if this game is for us
-          if (game.player1_id === user.id || game.player2_id === user.id) {
-            console.log('🎯 Match found for us:', game);
-            
-            // Clear queue state from localStorage
-            clearQueueState();
-            
-            // Update match state - this will switch from queue to match found screen
-            setState(prev => ({ 
-              ...prev, 
-              matchFound: game,
-              matchFoundData: null, // We'll fetch usernames separately
-              isInQueue: false, // This is key - it switches from queue to match found
-              queuePosition: null,
-              estimatedWaitTime: null,
-              loading: false,
-              error: null,
-            }));
-            matchFoundRef.current = game;
-            isInQueueRef.current = false;
-          }
+          if (!isString(game.player1_id) || !isString(game.player2_id)) return;
+          const player1Id = game.player1_id;
+          const player2Id = game.player2_id;
+          const usernames = await fetchUsernames(player1Id, player2Id);
+          setState(prev => ({
+            ...prev,
+            matchFound: game,
+            matchFoundData: {
+              game,
+              player1_username: usernames[player1Id] || `Player ${player1Id.slice(0, 8)}...`,
+              player2_username: usernames[player2Id] || `Player ${player2Id.slice(0, 8)}...`,
+            },
+            isInQueue: false,
+            queuePosition: null,
+            estimatedWaitTime: null,
+            loading: false,
+            error: '',
+          }));
+          matchFoundRef.current = game;
+          isInQueueRef.current = false;
         }
       )
-      
       .on(
         'broadcast',
         { event: 'match_accepted' },
-        (payload) => {
+        async (payload) => {
           console.log('🔍 Match accepted broadcast:', payload);
-          
-          if (!user?.id) return;
-          
-          // Use the correct payload structure based on the console output
           const game = payload.payload?.record as Game;
+          console.log('🔍 [DEBUG] match_accepted game object:', game);
+          if (!user?.id) return;
           if (!game) return;
-          
-          // Check if this game is for us
-          if (game.player1_id === user.id || game.player2_id === user.id) {
-            console.log('✅ Match accepted for us:', game);
-            
-            // Update match state with acceptance info (don't clear queue state here)
-            setState(prev => ({ 
-              ...prev, 
-              matchFound: game,
-              loading: false,
-              error: null,
-            }));
-            matchFoundRef.current = game;
+          if (!isString(game.player1_id) || !isString(game.player2_id)) return;
+          // If acceptance flags are not updated, fetch the latest game state
+          let latestGame = game;
+          if (!game.player1_accepted && !game.player2_accepted) {
+            // Defensive: if both are false, maybe payload is stale, fetch latest
+            const { data: fetched, error } = await supabase
+              .from('games')
+              .select('*')
+              .eq('id', game.id)
+              .single();
+            if (fetched && !error) {
+              latestGame = fetched;
+              console.log('🔍 [DEBUG] Fetched latest game object:', latestGame);
+            } else {
+              console.warn('⚠️ Could not fetch latest game state:', error);
+            }
           }
+          const player1Id = latestGame.player1_id;
+          const player2Id = latestGame.player2_id;
+          if (typeof player1Id !== 'string' || typeof player2Id !== 'string') return;
+          const usernames = await fetchUsernames(player1Id, player2Id);
+          setState(prev => ({
+            ...prev,
+            matchFound: latestGame,
+            matchFoundData: {
+              game: latestGame,
+              player1_username: usernames[player1Id] || `Player ${player1Id.slice(0, 8)}...`,
+              player2_username: usernames[player2Id] || `Player ${player2Id.slice(0, 8)}...`,
+            },
+            loading: false,
+            error: '',
+          }));
+          matchFoundRef.current = latestGame;
         }
       )
-      
       .on(
         'broadcast',
         { event: 'game_starting' },
@@ -675,12 +718,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
             // Clear queue state from localStorage
             clearQueueState();
             
-            // Start the game
-            startNewGame(
-              game.player1_id,
-              game.player2_id || ''
-            );
-            
             // Clear matchmaking state
             setState(prev => ({ 
               ...prev, 
@@ -689,12 +726,17 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
               queuePosition: null,
               estimatedWaitTime: null,
               loading: false,
-              error: null,
+              error: '',
             }));
             
             // Update refs
             matchFoundRef.current = null;
             isInQueueRef.current = false;
+            
+            // Redirect to the game page
+            if (typeof window !== 'undefined') {
+              window.location.href = `/game/${game.id}`;
+            }
           }
         }
       )
@@ -703,33 +745,50 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         'broadcast',
         { event: 'match_declined' },
         (payload) => {
-          console.log('🔍 Match declined broadcast:', payload);
-          
-          if (!user?.id) return;
-          
-          // Use the correct payload structure based on the console output
-          const game = payload.payload?.record as Game;
-          if (!game) return;
-          
-          // Check if this game is for us
-          if (game.player1_id === user.id || game.player2_id === user.id) {
-            console.log('❌ Match was declined for us');
-            
-            // Clear match state and queue state
-            clearQueueState();
-            setState(prev => ({ 
-              ...prev, 
-              matchFound: null,
-              isInQueue: false,
-              queuePosition: null,
-              estimatedWaitTime: null,
-              loading: false,
-              error: 'The match was declined. You can manually rejoin the queue when ready.',
-            }));
-            
-            // Update refs
-            matchFoundRef.current = null;
-            isInQueueRef.current = false;
+          console.log('MATCH_DECLINED HANDLER FIRED!');
+          console.log('FULL PAYLOAD:', JSON.stringify(payload, null, 2));
+          console.log('Payload:', payload);
+          // Use correct keys from payload
+          const oldGame = payload.payload?.old_record;
+          const newGame = payload.payload?.record;
+          console.log('oldGame:', oldGame);
+          console.log('newGame:', newGame);
+          if (oldGame && newGame) {
+            console.log('oldGame.status:', oldGame.status, 'newGame.status:', newGame.status, 'newGame.canceled_by:', newGame.canceled_by);
+          }
+          if (!user?.id || !newGame || !oldGame) return;
+          // Only handle if status changed from 'waiting' to 'canceled'
+          if (oldGame.status === 'waiting' && newGame.status === 'canceled') {
+            // If this user is NOT the one who declined, clear match state and allow immediate requeue
+            if (user.id !== newGame.canceled_by) {
+              setState(prev => ({
+                ...prev,
+                isInQueue: false,
+                queuePosition: null,
+                estimatedWaitTime: null,
+                matchFound: null,
+                matchFoundData: null,
+                error: 'Opponent declined the match',
+                loading: false,
+                declinePenaltyUntil: null,
+              }));
+              matchFoundRef.current = null;
+              isInQueueRef.current = false;
+            } else {
+              // Declining player already handled by declineMatch
+              setState(prev => ({
+                ...prev,
+                matchFound: null,
+                matchFoundData: null,
+                isInQueue: false,
+                queuePosition: null,
+                estimatedWaitTime: null,
+                loading: false,
+                error: '',
+              }));
+              matchFoundRef.current = null;
+              isInQueueRef.current = false;
+            }
           }
         }
       )
@@ -775,7 +834,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       setState(prev => ({ 
         ...prev, 
         declinePenaltyUntil: null,
-        error: null 
+        error: '' 
       }));
       console.log('✅ Decline penalty expired');
       return;
@@ -785,7 +844,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       setState(prev => ({ 
         ...prev, 
         declinePenaltyUntil: null,
-        error: null 
+        error: '' 
       }));
       console.log('✅ Decline penalty expired');
     }, remainingTime * 1000);
@@ -839,6 +898,11 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     }
   }, []);
 
+  // Expose a setError function for external error clearing
+  const setError = useCallback((err: string) => {
+    setState(prev => ({ ...prev, error: err }));
+  }, []);
+
   return {
     // State
     isInQueue: state.isInQueue,
@@ -858,5 +922,6 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     acceptMatch,
     declineMatch,
     cleanup,
+    setError,
   };
 }; 

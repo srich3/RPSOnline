@@ -7,9 +7,9 @@ type GameMove = Database['public']['Tables']['game_moves']['Row'];
 
 // Data transformation utilities
 export const transformGameData = (game: Game & { 
-  player1?: { username: string } | null, 
-  player2?: { username: string } | null,
-  winner?: { username: string } | null
+  player1?: { username: string | null } | null, 
+  player2?: { username: string | null } | null,
+  winner?: { username: string | null } | null
 }) => {
   return {
     ...game,
@@ -60,7 +60,7 @@ export const getGameHistory = async (userId: string, limit: number = 20) => {
 
   if (error) return { data: null, error };
 
-  const transformedGames = games?.map(game => ({
+  const transformedGames = games?.map((game: Game & { moves: GameMove[] }) => ({
     ...transformGameData(game),
     moves: game.moves || [],
     playerRole: game.player1_id === userId ? 'player1' : 'player2',
@@ -81,8 +81,8 @@ export const getPlayerStats = async (userId: string) => {
 
   const stats = {
     totalGames: games?.length || 0,
-    wins: games?.filter(g => g.winner_id === userId).length || 0,
-    losses: games?.filter(g => g.winner_id !== userId && g.winner_id !== null).length || 0,
+    wins: games?.filter((g: Game) => g.winner_id === userId).length || 0,
+    losses: games?.filter((g: Game) => g.winner_id !== userId && g.winner_id !== null).length || 0,
     winRate: 0,
     averageGameDuration: 0,
     longestWinStreak: 0,
@@ -96,7 +96,7 @@ export const getPlayerStats = async (userId: string) => {
   let longestStreak = 0;
   let tempStreak = 0;
 
-  games?.forEach(game => {
+  games?.forEach((game: Game) => {
     const isWin = game.winner_id === userId;
     if (isWin) {
       tempStreak++;
@@ -140,13 +140,13 @@ export const getGameAnalytics = async (gameId: string) => {
     game: transformGameData(game),
     moves: moves || [],
     totalTurns: moves?.length || 0,
-    player1Moves: moves?.filter(m => m.player_id === game.player1_id) || [],
-    player2Moves: moves?.filter(m => m.player_id === game.player2_id) || [],
+    player1Moves: moves?.filter((m: GameMove) => m.player_id === game.player1_id) || [],
+    player2Moves: moves?.filter((m: GameMove) => m.player_id === game.player2_id) || [],
     moveTypes: {
-      claim: moves?.filter(m => m.action_type === 'claim').length || 0,
-      attack: moves?.filter(m => m.action_type === 'attack').length || 0,
-      defend: moves?.filter(m => m.action_type === 'defend').length || 0,
-      conquer: moves?.filter(m => m.action_type === 'conquer').length || 0
+      claim: moves?.filter((m: GameMove) => m.action_type === 'claim').length || 0,
+      attack: moves?.filter((m: GameMove) => m.action_type === 'attack').length || 0,
+      defend: moves?.filter((m: GameMove) => m.action_type === 'defend').length || 0,
+      conquer: moves?.filter((m: GameMove) => m.action_type === 'conquer').length || 0
     }
   };
 
@@ -218,7 +218,7 @@ export const batchGetGameSummaries = async (gameIds: string[]) => {
 };
 
 // Search and filtering
-export const searchGames = async (query: string, filters: {
+export const searchGames = async (filters: {
   status?: 'waiting' | 'active' | 'finished';
   playerId?: string;
   limit?: number;
@@ -251,7 +251,7 @@ export const searchGames = async (query: string, filters: {
 };
 
 // Data validation helpers
-export const validateGameState = (gameState: any) => {
+export const validateGameState = (gameState: Record<string, unknown>) => {
   const requiredFields = ['board', 'currentPlayer', 'turnNumber'];
   const missingFields = requiredFields.filter(field => !(field in gameState));
   
@@ -266,7 +266,7 @@ export const validateGameState = (gameState: any) => {
   return { valid: true, errors: [] };
 };
 
-export const validateMove = (move: any) => {
+export const validateMove = (move: Partial<GameMove>) => {
   const requiredFields = ['game_id', 'player_id', 'turn_number', 'action_type', 'target_square', 'points_spent'];
   const missingFields = requiredFields.filter(field => !(field in move));
   
@@ -275,15 +275,15 @@ export const validateMove = (move: any) => {
   }
 
   const validActionTypes = ['claim', 'attack', 'defend', 'conquer'];
-  if (!validActionTypes.includes(move.action_type)) {
+  if (!move.action_type || !validActionTypes.includes(move.action_type)) {
     return { valid: false, errors: ['Invalid action type'] };
   }
 
-  if (move.target_square < 0 || move.target_square > 8) {
+  if (move.target_square === undefined || move.target_square < 0 || move.target_square > 8) {
     return { valid: false, errors: ['Invalid target square'] };
   }
 
-  if (move.points_spent < 0) {
+  if (move.points_spent === undefined || move.points_spent < 0) {
     return { valid: false, errors: ['Invalid points spent'] };
   }
 
@@ -291,7 +291,7 @@ export const validateMove = (move: any) => {
 };
 
 // Error handling utilities
-export const handleDatabaseError = (error: any) => {
+export const handleDatabaseError = (error: { code: string }) => {
   console.error('Database error:', error);
   
   if (error.code === '23505') {

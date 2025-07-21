@@ -15,51 +15,33 @@ export interface Database {
       users: {
         Row: {
           id: string
-          username: string
+          username: string | null
           wins: number
           losses: number
           rating: number
           created_at: string
-          tutorial_complete: boolean
-          total_games_played: number
-          games_won: number
-          games_lost: number
-          games_forfeited: number
-          games_canceled: number
-          opponents_forfeited: number
-          opponents_canceled: number
+          tutorial_complete: boolean | null
+          stats_json: Json
         }
         Insert: {
           id: string
-          username: string
+          username?: string | null
           wins?: number
           losses?: number
           rating?: number
           created_at?: string
-          tutorial_complete?: boolean
-          total_games_played?: number
-          games_won?: number
-          games_lost?: number
-          games_forfeited?: number
-          games_canceled?: number
-          opponents_forfeited?: number
-          opponents_canceled?: number
+          tutorial_complete?: boolean | null
+          stats_json?: Json
         }
         Update: {
           id?: string
-          username?: string
+          username?: string | null
           wins?: number
           losses?: number
           rating?: number
           created_at?: string
-          tutorial_complete?: boolean
-          total_games_played?: number
-          games_won?: number
-          games_lost?: number
-          games_forfeited?: number
-          games_canceled?: number
-          opponents_forfeited?: number
-          opponents_canceled?: number
+          tutorial_complete?: boolean | null
+          stats_json?: Json
         }
         Relationships: [
           {
@@ -75,50 +57,41 @@ export interface Database {
         Row: {
           id: string
           player1_id: string
-          player2_id: string | null
-          status: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
+          player2_id: string
+          status: 'waiting' | 'active' | 'finished' | 'canceled'
           winner_id: string | null
           game_state: Json
           turn_number: number
+          current_player: string
           created_at: string
-          updated_at: string
           player1_accepted: boolean
           player2_accepted: boolean
-          completed_at: string | null
-          forfeited_by: string | null
-          canceled_by: string | null
         }
         Insert: {
           id?: string
           player1_id: string
-          player2_id?: string | null
-          status?: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
+          player2_id: string
+          status?: 'waiting' | 'active' | 'finished' | 'canceled'
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
+          current_player: string
           created_at?: string
-          updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
-          completed_at?: string | null
-          forfeited_by?: string | null
-          canceled_by?: string | null
         }
         Update: {
           id?: string
           player1_id?: string
-          player2_id?: string | null
-          status?: 'waiting' | 'active' | 'finished' | 'forfeit' | 'winner_determined' | 'canceled'
+          player2_id?: string
+          status?: 'waiting' | 'active' | 'finished' | 'canceled'
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
+          current_player?: string
           created_at?: string
-          updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
-          completed_at?: string | null
-          forfeited_by?: string | null
-          canceled_by?: string | null
         }
         Relationships: [
           {
@@ -198,16 +171,19 @@ export interface Database {
           id: string
           user_id: string
           created_at: string
+          rating: number | null
         }
         Insert: {
           id?: string
           user_id: string
           created_at?: string
+          rating?: number | null
         }
         Update: {
           id?: string
           user_id?: string
           created_at?: string
+          rating?: number | null
         }
         Relationships: [
           {
@@ -219,100 +195,26 @@ export interface Database {
           }
         ]
       }
-      achievements: {
-        Row: {
-          id: string
-          name: string
-          description: string
-          icon: string
-          category: string
-          requirement_type: string
-          requirement_value: number
-          reward_type: string | null
-          reward_value: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description: string
-          icon?: string
-          category?: string
-          requirement_type: string
-          requirement_value: number
-          reward_type?: string | null
-          reward_value?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string
-          icon?: string
-          category?: string
-          requirement_type?: string
-          requirement_value?: number
-          reward_type?: string | null
-          reward_value?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      user_achievements: {
-        Row: {
-          id: string
-          user_id: string
-          achievement_id: string
-          earned_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          achievement_id: string
-          earned_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          achievement_id?: string
-          earned_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_achievements_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_achievements_achievement_id_fkey"
-            columns: ["achievement_id"]
-            isOneToOne: false
-            referencedRelation: "achievements"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
+
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      forfeit_game: {
+      update_user_stats: {
         Args: {
-          game_id: string
-          player_id: string
+          user_uuid: string
+          new_stats: Json
         }
         Returns: boolean
-      }
+      },
       cancel_game: {
         Args: {
-          game_id: string
-          player_id: string
-        }
-        Returns: boolean
-      }
+          game_id: string;
+          player_id: string;
+        };
+        Returns: boolean;
+      },
     }
     Enums: {
       [_ in never]: never

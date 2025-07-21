@@ -5,7 +5,6 @@ import {
   GameBoardState,
   PlayerAction,
   PlayerTurn,
-  TurnPhase,
   GameStatus,
   GameMove,
 } from '../types/game';
@@ -158,7 +157,7 @@ export const useGameStore = create<GameStore>()(
 
         const newAction: PlayerAction = {
           id: crypto.randomUUID(),
-          action_type: actionType as any,
+          action_type: actionType as PlayerAction['action_type'],
           target_square: squareId,
           points_spent: points,
           timestamp: new Date().toISOString(),
@@ -212,6 +211,9 @@ export const useGameStore = create<GameStore>()(
           ],
           moveCount: state.moveCount + pendingActions.length,
         }));
+
+        // Broadcast turn submission to other players
+        // This will be handled by the real-time game hook
 
         // If both players have submitted, resolve the turn
         if (newBoardState.player1_submitted && newBoardState.player2_submitted) {
@@ -311,7 +313,12 @@ export const useGameStore = create<GameStore>()(
 
       getGameStats: () => {
         const { boardState } = get();
-        if (!boardState) return null;
+        if (!boardState) return {
+          player1Squares: 0,
+          player2Squares: 0,
+          defendedSquares: 0,
+          emptySquares: 9,
+        };
         return calculateGameStats(boardState);
       },
 

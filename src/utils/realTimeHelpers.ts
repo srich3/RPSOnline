@@ -8,6 +8,7 @@ export interface PresenceData {
   status: 'online' | 'away' | 'in-game' | 'offline';
   last_seen: string;
   game_id?: string;
+  online_at?: string; // Added to support useRealTimeGame usage
 }
 
 export interface GameMessage {

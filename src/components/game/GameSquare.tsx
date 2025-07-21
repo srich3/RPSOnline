@@ -8,6 +8,7 @@ interface GameSquareProps {
   isSelected: boolean;
   pendingActions: Array<{ action_type: string; points_spent: number }>;
   onClick: () => void;
+  className?: string;
 }
 
 const getSquareContent = (square: SquareState) => {
@@ -35,7 +36,8 @@ const GameSquare: React.FC<GameSquareProps> = ({
   isCurrentPlayer, 
   isSelected,
   pendingActions,
-  onClick 
+  onClick,
+  className = ''
 }) => {
   const totalPendingPoints = pendingActions.reduce((sum, action) => sum + action.points_spent, 0);
   const hasPendingActions = pendingActions.length > 0;
@@ -56,6 +58,7 @@ const GameSquare: React.FC<GameSquareProps> = ({
         ${square.is_defended ? 'bg-blue-100' : square.owner ? 'bg-green-100' : 'bg-white'}
         ${isSelected ? 'ring-4 ring-blue-400 ring-opacity-50' : ''}
         ${hasPendingActions ? 'ring-2 ring-yellow-400' : ''}
+        ${className}
       `}
       onClick={onClick}
       disabled={!!square.owner}

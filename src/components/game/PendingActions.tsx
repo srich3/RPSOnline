@@ -5,6 +5,7 @@ interface PendingActionsProps {
   pendingActions: PlayerAction[];
   onRemoveAction: (actionId: string) => void;
   isMyTurn: boolean;
+  className?: string;
 }
 
 const getActionIcon = (actionType: string) => {
@@ -29,17 +30,18 @@ const PendingActions: React.FC<PendingActionsProps> = ({
   pendingActions,
   onRemoveAction,
   isMyTurn,
+  className = '',
 }) => {
   if (pendingActions.length === 0) {
     return (
-      <div className="w-full max-w-md p-3 bg-gray-50 rounded text-center text-gray-500 text-sm">
+      <div className={`w-full max-w-md p-3 bg-gray-50 rounded text-center text-gray-500 text-sm ${className}`}>
         No pending actions
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-md p-3 bg-white rounded shadow">
+    <div className={`w-full max-w-md p-3 bg-white rounded shadow ${className}`}>
       <h3 className="text-sm font-semibold mb-2 text-gray-700">Pending Actions ({pendingActions.length})</h3>
       <div className="space-y-2">
         {pendingActions.map((action) => (

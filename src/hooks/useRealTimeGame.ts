@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../components/auth/AuthProvider';
 import { useGameStore } from '../store/gameStore';
 import type { GameBoardState } from '../types/game';
+import { PresenceData } from '../utils/realTimeHelpers';
 
 interface RealTimeGameState {
   isConnected: boolean;
@@ -123,6 +124,7 @@ export const useRealTimeGame = (options: UseRealTimeGameOptions) => {
     await gameChannel.current.track({
       user_id: user.id,
       status: 'online',
+      online_at: new Date().toISOString(),
     });
 
     setState(prev => ({
@@ -137,14 +139,14 @@ export const useRealTimeGame = (options: UseRealTimeGameOptions) => {
   const updateOpponentStatus = useCallback(() => {
     if (!gameChannel.current || !user?.id || !currentGame) return;
 
-    const presence = gameChannel.current.presenceState();
+    const presence = gameChannel.current.presenceState<PresenceData>();
     const opponentId = currentGame.player1_id === user.id 
       ? currentGame.player2_id 
       : currentGame.player1_id;
 
     const opponentPresence = presence[opponentId];
     const isOnline = opponentPresence && opponentPresence.length > 0;
-    const lastSeen = isOnline 
+    const lastSeen = (isOnline && opponentPresence[0].online_at)
       ? new Date(opponentPresence[0].online_at) 
       : state.opponentLastSeen;
 

@@ -354,10 +354,14 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
       console.log('📋 No existing game found, joining queue...');
 
       // Join the matchmaking queue using the new real-time approach
+      if (!user || !user.id || !profile || !profile.username || profile.rating == null) return; // Ensure all required fields are present
+      const userId = user.id;
+      const username = profile.username;
+      const rating = profile.rating;
       const success = await joinMatchmakingQueue(
-        user.id,
-        profile.username,
-        profile.rating
+        userId,
+        username,
+        rating
       );
 
       if (success) {
@@ -375,9 +379,9 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
         } else {
           // Save queue state to localStorage
           const queueState: QueueStorageState = {
-            userId: user.id,
-            username: profile.username,
-            rating: profile.rating,
+            userId: userId,
+            username: username,
+            rating: rating,
             joinedAt: Date.now(),
             estimatedWaitTime: 0,
           };
@@ -429,6 +433,7 @@ export const useMatchmaking = (options: UseMatchmakingOptions = {}) => {
     setState(prev => ({ ...prev, loading: true }));
 
     try {
+      if (!user?.id) return; // Ensure user.id is a string
       const success = await leaveMatchmakingQueue(user.id);
 
       if (success) {

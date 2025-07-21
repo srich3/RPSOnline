@@ -40,8 +40,12 @@ export interface GameHistoryEntry {
   game_id: string;
   won: boolean;
   opponent_id: string | null;
-  game_actions: any;
-  game_stats: any;
+  game_actions: GameAction[];
+  game_stats: {
+    total_attacks: number;
+    total_defends: number;
+    total_conquers: number;
+  };
   created_at: string;
 }
 
@@ -110,7 +114,11 @@ class StatsManager {
         console.error('Error loading user stats:', error);
         this.localStats = { ...DEFAULT_STATS };
       } else {
-        this.localStats = user.stats_json as UserStats || { ...DEFAULT_STATS };
+        if (user.stats_json && typeof user.stats_json === 'object' && !Array.isArray(user.stats_json)) {
+          this.localStats = user.stats_json as unknown as UserStats;
+        } else {
+          this.localStats = { ...DEFAULT_STATS };
+        }
       }
     } catch (err) {
       console.error('Error initializing stats manager:', err);
@@ -288,7 +296,7 @@ class StatsManager {
     try {
       const { error } = await supabase.rpc('update_user_stats', {
         user_uuid: this.userId,
-        new_stats: this.localStats
+        new_stats: JSON.parse(JSON.stringify(this.localStats))
       });
 
       if (error) {

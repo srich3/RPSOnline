@@ -1,4 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+/// <reference lib="deno.ns" />
+import { serve } from "https://deno.land/std@0.168.0/http/server"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -6,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -61,18 +62,18 @@ serve(async (req) => {
     console.log(`✅ Game ${gameId} status updated to active`)
 
     // Broadcast game start event
-    const { error: broadcastError } = await supabase
-      .channel('matchmaking')
-      .send({
-        type: 'broadcast',
-        event: 'game_starting',
-        payload: {
-          record: game
-        }
-      })
-
-    if (broadcastError) {
-      console.error('❌ Error broadcasting game start:', broadcastError)
+    try {
+      await supabase
+        .channel('matchmaking')
+        .send({
+          type: 'broadcast',
+          event: 'game_starting',
+          payload: {
+            record: game
+          }
+        })
+    } catch (err) {
+      console.error('❌ Error broadcasting game start:', err)
       return new Response(
         JSON.stringify({ error: 'Failed to broadcast game start' }),
         { 

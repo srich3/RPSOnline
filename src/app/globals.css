@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Unified color variables for theming */
 :root {
@@ -8,14 +10,15 @@
   --color-bg: var(--color-light);
   --color-fg: var(--color-dark);
   /* Button swap filters */
-  --color-dark-soft: color-mix(in srgb, var(--color-dark) 80%, var(--color-light) 20%);
+  --color-dark-soft: color-mix(in srgb, var(--color-dark) 70%, var(--color-light) 30%);
   --color-light-soft: color-mix(in srgb, var(--color-light) 90%, var(--color-dark) 10%);
 
   
   --color-bg-soft: color-mix(in srgb, var(--color-light) 90%, var(--color-dark) 10%);
-  --color-fg-soft: color-mix(in srgb, var(--color-dark) 80%, var(--color-light) 20%);
+  --color-fg-soft: color-mix(in srgb, var(--color-dark) 70%, var(--color-light) 30%);
 
 }
+
 [data-theme="dark"] {
   --color-light: #fff;
   --color-dark: #111;
@@ -24,21 +27,14 @@
   --color-dark-soft: color-mix(in srgb, var(--color-dark) 80%, var(--color-light) 20%);
   --color-light-soft: color-mix(in srgb, var(--color-light) 90%, var(--color-dark) 10%);
   
-  --color-bg-soft: color-mix(in srgb, var(--color-dark) 80%, var(--color-light) 20%);
+  --color-bg-soft: color-mix(in srgb, var(--color-dark) 90%, var(--color-light) 10%);
   --color-fg-soft: color-mix(in srgb, var(--color-light) 90%, var(--color-dark) 10%);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-fg);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 

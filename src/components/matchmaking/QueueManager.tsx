@@ -236,7 +236,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               </div>
               {/* Acceptance Status */}
               {acceptanceStatus && (
-                <div className="bg-[color-mix(in_srgb,var(--color-dark-soft)_80%,var(--color-bg)_20%)] rounded-lg p-4">
+                <div className="bg-[var(--color-bg-soft)] rounded-lg p-4">
                   <div className="text-center space-y-3">
                     {acceptanceStatus.bothAccepted ? (
                       <>
@@ -251,8 +251,8 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                     ) : acceptanceStatus.hasAccepted ? (
                       <>
                         <div className="flex items-center justify-center space-x-2">
-                          <Clock className="w-5 h-5 text-orange-400" />
-                          <span className="text-orange-400 font-medium">Waiting on Opponent</span>
+                          <Clock className="w-5 h-5 text-[var(--color-fg)]" />
+                          <span className="text-[var(--color-fg)] font-medium">Waiting on Opponent</span>
                         </div>
                         <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           You've accepted. Waiting for the other player...
@@ -283,8 +283,8 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                     ) : (
                       <>
                         <div className="flex items-center justify-center space-x-2">
-                          <Clock className="w-5 h-5 text-orange-400" />
-                          <span className="text-orange-400 font-medium">Waiting for Acceptance</span>
+                          <Clock className="w-5 h-5 text-[var(--color-fg)]" />
+                          <span className="text-[var(--color-fg)] font-medium">Waiting on Opponent</span>
                         </div>
                         <p className="text-[color-mix(in_srgb,var(--color-fg)_60%,var(--color-bg)_40%)] text-sm">
                           Both players need to accept to start the game
@@ -302,7 +302,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
               )}
               {/* Countdown Timer - Only show if current player hasn't accepted yet */}
               {acceptanceStatus && !acceptanceStatus.hasAccepted && (
-                <div className="bg-[color-mix(in_srgb,var(--color-dark-soft)_80%,var(--color-bg)_20%)] rounded-lg p-4">
+                <div className="bg-[var(--color-bg-soft)] rounded-lg p-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <Clock className="w-5 h-5 text-orange-400" />
@@ -325,11 +325,11 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                     disabled={loading}
                     className="flex-1 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
-                      background: 'var(--color-dark)',
-                      color: 'var(--color-light)',
+                      background: 'var(--color-light-soft)',
+                      color: 'var(--color-dark)',
                     }}
                   >
-                    <Check className="w-5 h-5" />
+                    <Check className="w-5 h-5 " />
                     <span>Accept</span>
                   </motion.button>
                   <motion.button
@@ -339,7 +339,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                     disabled={loading}
                     className="flex-1 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
-                      background: 'var(--color-dark)',
+                      background: 'var(--color-dark-soft)',
                       color: 'var(--color-light)',
                     }}
                   >
@@ -408,14 +408,14 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 </p>
               </div>
               {/* Queue Info */}
-              <div className="bg-[color-mix(in_srgb,var(--color-dark-soft)_80%,var(--color-bg)_20%)] rounded-lg p-4 space-y-3">
+              <div className="bg-[var(--color-bg)] rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[color-mix(in_srgb,var(--color-fg)_50%,var(--color-bg)_50%)] text-sm">Position in queue:</span>
+                  <span className="text-[var(--color-fg)] text-sm">Position in queue:</span>
                   <span className="text-[var(--color-fg)] font-medium">{queuePosition || 'Calculating...'}</span>
                 </div>
                 {estimatedWaitTime !== null && (
                   <div className="flex justify-between items-center">
-                    <span className="text-[color-mix(in_srgb,var(--color-fg)_50%,var(--color-bg)_50%)] text-sm">Wait time:</span>
+                    <span className="text-[color-mix(in_srgb,var(--color-fg)_50%,var(--color-bg-soft)_50%)] text-sm">Wait time:</span>
                     <span className="text-[var(--color-fg)] font-medium">{formatWaitTime(estimatedWaitTime)}</span>
                   </div>
                 )}
@@ -424,7 +424,7 @@ export default function QueueManager({ className = '' }: QueueManagerProps) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={leaveQueue}
-                className="w-full bg-[var(--color-light-soft)] text-[var(--color-fg)] hover:brightness-90 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
+                className="w-full bg-[var(--color-bg-soft)] text-[var(--color-fg)] hover:brightness-90 font-semibold py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200"
               >
                 <X className="w-5 h-5" />
                 <span>Cancel Search</span>

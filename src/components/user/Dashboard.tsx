@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Users, Trophy, Settings, Bell, Search, Zap, Target, Crown } from 'lucide-react';
 import ProfileCard from './ProfileCard';
-import StatsOverview from './StatsOverview';
+import { StatsOverview } from './StatsOverview';
 import QueueManager from '../matchmaking/QueueManager';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';

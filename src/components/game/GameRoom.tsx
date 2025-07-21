@@ -217,8 +217,6 @@ export default function GameRoom({ gameId, className = '' }: GameRoomProps) {
           className="bg-[var(--color-bg)] text-[var(--color-fg)]"
         />
         <TurnTimer
-          timeRemaining={currentTurn.time_remaining}
-          currentPlayerId={currentTurn.player_id}
           className="bg-[var(--color-dark-soft)] text-[var(--color-light)]"
         />
       </div>

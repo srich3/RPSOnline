@@ -342,7 +342,6 @@ export const findMatch = async (userId: string) => {
     const { data: newGame, error: createError } = await createGame({
       player1_id: userId,
       player2_id: '00000000-0000-0000-0000-000000000000', // Placeholder for waiting game
-      current_player: userId,
       status: 'waiting'
     });
     

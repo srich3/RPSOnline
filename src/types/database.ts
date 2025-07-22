@@ -62,10 +62,13 @@ export interface Database {
           winner_id: string | null
           game_state: Json
           turn_number: number
-          current_player: string
           created_at: string
+          updated_at: string
           player1_accepted: boolean
           player2_accepted: boolean
+          completed_at: string | null
+          forfeited_by: string | null
+          canceled_by: string | null
         }
         Insert: {
           id?: string
@@ -75,10 +78,13 @@ export interface Database {
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
-          current_player: string
           created_at?: string
+          updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
+          completed_at?: string | null
+          forfeited_by?: string | null
+          canceled_by?: string | null
         }
         Update: {
           id?: string
@@ -88,10 +94,13 @@ export interface Database {
           winner_id?: string | null
           game_state?: Json
           turn_number?: number
-          current_player?: string
           created_at?: string
+          updated_at?: string
           player1_accepted?: boolean
           player2_accepted?: boolean
+          completed_at?: string | null
+          forfeited_by?: string | null
+          canceled_by?: string | null
         }
         Relationships: [
           {
@@ -107,15 +116,28 @@ export interface Database {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "games_winner_id_fkey"
-            columns: ["winner_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-
+            },
+            {
+              foreignKeyName: "games_winner_id_fkey"
+              columns: ["winner_id"]
+              isOneToOne: false
+              referencedRelation: "users"
+              referencedColumns: ["id"]
+            },
+            {
+              foreignKeyName: "games_forfeited_by_fkey"
+              columns: ["forfeited_by"]
+              isOneToOne: false
+              referencedRelation: "users"
+              referencedColumns: ["id"]
+            },
+            {
+              foreignKeyName: "games_canceled_by_fkey"
+              columns: ["canceled_by"]
+              isOneToOne: false
+              referencedRelation: "users"
+              referencedColumns: ["id"]
+            }
         ]
       }
       game_moves: {

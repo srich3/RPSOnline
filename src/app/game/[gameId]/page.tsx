@@ -10,12 +10,9 @@ import GameRoom from '../../../components/game/GameRoom';
 import LoadingOverlay from '../../../components/ui/LoadingOverlay';
 import type { Game } from '../../../types/database';
 
-interface GamePageProps {
-  params: Promise<{ gameId: string }>;
-}
-
-const GamePage: React.FC<GamePageProps> = ({ params }) => {
-  const { gameId } = React.use(params);
+const GamePage: React.FC = () => {
+  const params = useParams();
+  const gameId = typeof params.gameId === 'string' ? params.gameId : Array.isArray(params.gameId) ? params.gameId[0] : '';
   const router = useRouter();
   const { user, profile } = useAuth();
   const { startNewGame } = useGameStore();
